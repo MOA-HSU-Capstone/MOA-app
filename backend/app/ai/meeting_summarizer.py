@@ -6,34 +6,27 @@ meeting_summarizer.py
 역할
 - STT JSON / OCR JSON payload를 입력받아
   OpenAI API를 통해 구조화된 회의 요약 결과를 생성
-- 사용자에게는 아래 3가지를 함께 제공
-  1) STT 원문 텍스트
-  2) OCR 원문 텍스트
-  3) STT + OCR을 종합한 회의 요약 결과
+- 반환 형식은 summary / decisions / action_items 만 포함한 dict
 
 반환 예시
 ---------
 {
-    "stt_text": "...",
-    "ocr_text": "...",
-    "summary_result": {
-        "summary": "...",
-        "decisions": ["..."],
-        "action_items": [
-            {
-                "task": "...",
-                "owner": "...",
-                "deadline": "..."
-            }
-        ]
-    }
+    "summary": "...",
+    "decisions": ["..."],
+    "action_items": [
+        {
+            "task": "...",
+            "owner": "...",
+            "deadline": "..."
+        }
+    ]
 }
 
 특징
 - OpenAI 클라이언트는 config/openai_client.py를 사용
 - 모델명은 config/settings.py에서 읽음
-- STT와 OCR은 따로 사용자에게 전달 가능
-- 요약은 STT + OCR을 함께 참고하여 생성
+- STT와 OCR은 LLM 입력에는 함께 사용하지만,
+  반환은 최종 요약 결과만 제공
 """
 
 from __future__ import annotations
@@ -51,13 +44,7 @@ logger = logging.getLogger(__name__)
 
 def _build_prompt(stt_text: str, ocr_text: str, title: str = "") -> str:
     """
-    기존 방식:
-    전처리된 STT 텍스트 + OCR 텍스트를 LLM에 전달할 프롬프트 생성
-
-    핵심:
-    - STT와 OCR을 각각 따로 프롬프트에 넣음
-    - 하지만 모델은 이를 따로 반환하지 않고
-      하나의 통합 요약 결과를 생성함
+    STT 텍스트 + OCR 텍스트를 LLM에 전달할 프롬프트 생성
     """
 
     stt_text = (stt_text or "").strip()
@@ -94,13 +81,8 @@ def _build_prompt(stt_text: str, ocr_text: str, title: str = "") -> str:
 
 def _build_payload_prompt(payload: Dict[str, Any]) -> str:
     """
-    확장 방식:
     STT JSON + OCR JSON + 회의 메타데이터를 하나의 payload로 받아
     LLM에 전달할 프롬프트 생성
-
-    핵심:
-    - STT / OCR / 메타데이터를 모두 전달
-    - 모델은 이 전체 정보를 종합해서 하나의 요약 결과를 생성
     """
 
     payload_json = json.dumps(payload, ensure_ascii=False, indent=2)
@@ -154,21 +136,10 @@ def _call_llm(prompt: str) -> Dict[str, Any]:
     """
     공통 OpenAI 호출 함수
 
-    Parameters
-    ----------
-    prompt : str
-        LLM에 전달할 최종 프롬프트
-
     Returns
     -------
     Dict[str, Any]
         구조화된 회의 요약 결과
-        예:
-        {
-            "summary": "...",
-            "decisions": [...],
-            "action_items": [...]
-        }
     """
 
     if not settings.openai_api_key:
@@ -229,133 +200,44 @@ def summarize_meeting_from_text(
     """
     STT 텍스트 + OCR 텍스트를 기반으로 회의 요약 수행
 
-    반환 구조
-    ----------
-    {
-        "stt_text": "...",         # 사용자에게 그대로 보여줄 STT 텍스트
-        "ocr_text": "...",         # 사용자에게 그대로 보여줄 OCR 텍스트
-        "summary_result": { ... }  # STT + OCR을 종합한 회의 요약
-    }
-
-    즉,
-    - STT 따로 제공
-    - OCR 따로 제공
-    - 요약은 둘을 합쳐서 제공
+    Returns
+    -------
+    Dict[str, Any]
+        {
+            "summary": "...",
+            "decisions": [...],
+            "action_items": [...]
+        }
     """
 
-    # None 방지 및 문자열 정리
     stt_text = (stt_text or "").strip()
     ocr_text = (ocr_text or "").strip()
     title = (title or "").strip()
 
-    # 1. STT + OCR을 함께 넣어 요약 프롬프트 생성
     prompt = _build_prompt(
         stt_text=stt_text,
         ocr_text=ocr_text,
         title=title,
     )
 
-    # 2. LLM이 둘을 종합한 요약 결과 생성
-    summary_result = _call_llm(prompt)
-
-    # 3. 사용자에게는 원문(STT/OCR) + 통합 요약 결과를 함께 반환
-    return {
-        "stt_text": stt_text,
-        "ocr_text": ocr_text,
-        "summary_result": summary_result,
-    }
+    return _call_llm(prompt)
 
 
 def summarize_meeting_from_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
     """
     STT JSON + OCR JSON payload 전체를 기반으로 회의 요약 수행
 
-    이 함수는 payload 안에서 STT / OCR 원문을 추출한 뒤,
-    사용자에게는
-    - stt_text
-    - ocr_text
-    - summary_result
-    를 함께 반환한다.
-
-    payload 예시
-    ------------
-    {
-        "meeting": {
-            "meeting_id": 1,
-            "title": "주간 회의",
-            "description": "..."
-        },
-        "stt": [
-            {
-                "id": 1,
-                "meeting_id": 1,
-                "content": "이번 주 일정 정리해보겠습니다.",
-                "created_at": "2026-04-01T10:00:00"
-            }
-        ],
-        "ocr": [
-            {
-                "id": 10,
-                "meeting_id": 1,
-                "file_path": "uploads/images/xxx.png",
-                "image_type": "image",
-                "ocr_text": "프로젝트 목표: ...",
-                "analysis_text": "회의 자료 요약: ...",
-                "created_at": "2026-04-01T10:05:00"
-            }
-        ]
-    }
+    주의
+    ----
+    - payload 안의 STT/OCR 데이터는 LLM 입력용으로 사용
+    - 반환은 최종 summary 결과만 제공
     """
 
     if not payload:
         raise RuntimeError("LLM에 전달할 payload가 비어 있습니다.")
 
-    # -----------------------------------------
-    # 1. payload에서 STT 텍스트 추출
-    # -----------------------------------------
-    # stt는 리스트 형태라고 가정
-    # 기존 유틸 함수 stt_json_to_text를 사용하여
-    # STT JSON 배열 -> 하나의 문자열로 변환
-    stt_items = payload.get("stt", [])
-    stt_text = stt_json_to_text(stt_items)
-
-    # -----------------------------------------
-    # 2. payload에서 OCR 텍스트 추출
-    # -----------------------------------------
-    # OCR 항목이 여러 개일 수 있으므로
-    # ocr_text와 analysis_text를 모두 합쳐 하나의 문자열로 만듦
-    ocr_items = payload.get("ocr", [])
-    ocr_parts = []
-
-    for item in ocr_items:
-        if not isinstance(item, dict):
-            continue
-
-        raw_ocr_text = (item.get("ocr_text") or "").strip()
-        analysis_text = (item.get("analysis_text") or "").strip()
-
-        if raw_ocr_text:
-            ocr_parts.append(raw_ocr_text)
-
-        if analysis_text:
-            ocr_parts.append(analysis_text)
-
-    ocr_text = "\n".join(ocr_parts).strip()
-
-    # -----------------------------------------
-    # 3. payload 전체를 이용해 LLM 요약 수행
-    # -----------------------------------------
     prompt = _build_payload_prompt(payload)
-    summary_result = _call_llm(prompt)
-
-    # -----------------------------------------
-    # 4. 사용자에게는 STT / OCR / 요약 결과를 함께 반환
-    # -----------------------------------------
-    return {
-        "stt_text": stt_text,
-        "ocr_text": ocr_text,
-        "summary_result": summary_result,
-    }
+    return _call_llm(prompt)
 
 
 def summarize_meeting(
@@ -366,18 +248,10 @@ def summarize_meeting(
     """
     기존 호환용 함수:
     STT 세그먼트 배열 + OCR 텍스트를 기반으로 회의 요약 수행
-
-    이 함수도 동일하게
-    - STT 따로
-    - OCR 따로
-    - 요약은 둘을 합쳐서
-    반환하도록 맞춤
     """
 
-    # STT JSON/세그먼트 배열을 사람이 읽을 수 있는 텍스트로 변환
     stt_text = stt_json_to_text(stt_segments)
 
-    # 최종 반환 형식은 summarize_meeting_from_text와 동일
     return summarize_meeting_from_text(
         stt_text=stt_text,
         ocr_text=ocr_text,
