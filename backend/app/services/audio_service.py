@@ -6,6 +6,7 @@ audio_service.py
 역할
 - 업로드된 오디오 파일 저장
 - 오디오 전처리
+- STT 서버 전송 전 wav 변환
 - STT 수행
 - transcript DB 저장
 
@@ -17,6 +18,8 @@ audio_service
 file_manager
     ↓
 preprocess
+    ↓
+audio_converter
     ↓
 stt_service
     ↓
@@ -34,6 +37,7 @@ from schemas.transcript_schema import TranscriptCreate, TranscriptResponse
 from services.stt_service import transcribe_audio_file
 from storage.file_manager import save_audio_file
 from utils.preprocess import preprocess_audio_file
+from utils.audio_converter import convert_audio_to_wav
 
 
 def process_uploaded_audio(
@@ -42,7 +46,9 @@ def process_uploaded_audio(
     upload_file,
 ) -> TranscriptResponse:
     """
-    업로드된 오디오 파일을 저장하고 STT를 수행한 뒤 transcript를 DB에 저장
+    업로드된 오디오 파일을 저장하고,
+    STT 서버에 보내기 전에 wav 파일로 변환한 뒤,
+    STT 결과를 transcript DB에 저장한다.
 
     Parameters
     ----------
@@ -65,9 +71,10 @@ def process_uploaded_audio(
     1. meeting_id에 해당하는 회의 존재 여부 확인
     2. 업로드된 오디오 파일을 meeting_id 전용 폴더에 저장
     3. 저장된 오디오 파일 전처리
-    4. STT 수행
-    5. transcript DB 저장
-    6. 응답 스키마 반환
+    4. STT 서버 전송용 wav 파일로 변환
+    5. STT 수행
+    6. transcript DB 저장
+    7. 응답 스키마 반환
     """
 
     # 1. 회의 존재 여부 확인
@@ -86,19 +93,52 @@ def process_uploaded_audio(
     )
 
     # 3. 오디오 전처리
+    #    기존 프로젝트의 preprocess_audio_file() 로직을 유지
     processed_path = preprocess_audio_file(saved_path)
 
-    # 4. STT 실행
-    transcript_text = transcribe_audio_file(processed_path)
+    # 4. STT 서버로 보내기 전에 wav 파일로 변환
+    #    Android에서 m4a, mp4, aac 등으로 녹음해도
+    #    STT 서버에는 항상 wav 파일을 보내기 위한 단계
+    try:
+        wav_path = convert_audio_to_wav(processed_path)
 
-    # 5. transcript 생성 스키마 작성
+    except FileNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"오디오 파일을 찾을 수 없습니다: {str(e)}",
+        )
+
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"오디오 wav 변환 중 오류가 발생했습니다: {str(e)}",
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"알 수 없는 오디오 변환 오류가 발생했습니다: {str(e)}",
+        )
+
+    # 5. STT 실행
+    #    기존 processed_path가 아니라 wav_path를 넘겨야 함
+    try:
+        transcript_text = transcribe_audio_file(wav_path)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"STT 처리 중 오류가 발생했습니다: {str(e)}",
+        )
+
+    # 6. transcript 생성 스키마 작성
     transcript_data = TranscriptCreate(
         meeting_id=meeting_id,
         content=transcript_text,
     )
 
-    # 6. DB 저장
+    # 7. DB 저장
     transcript = create_transcript(db, transcript_data)
 
-    # 7. 응답 스키마 변환
+    # 8. 응답 스키마 변환
     return TranscriptResponse.model_validate(transcript)
