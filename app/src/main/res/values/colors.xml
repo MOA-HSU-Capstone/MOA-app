@@ -1,5 +1,26 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- App defaults -->
+    <color name="app_background">#FFFFFFFF</color>
+    <color name="text_primary">#FF000000</color>
+
+    <!-- Base -->
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Grayscale (AA/BB/… resource names must be lowercase on Android) -->
+    <color name="gray_11">#FF111111</color>
+    <color name="gray_22">#FF222222</color>
+    <color name="gray_33">#FF333333</color>
+    <color name="gray_44">#FF444444</color>
+    <color name="gray_55">#FF555555</color>
+    <color name="gray_66">#FF666666</color>
+    <color name="gray_77">#FF777777</color>
+    <color name="gray_88">#FF888888</color>
+    <color name="gray_99">#FF999999</color>
+    <color name="gray_aa">#FFAAAAAA</color>
+    <color name="gray_bb">#FFBBBBBB</color>
+    <color name="gray_cc">#FFCCCCCC</color>
+    <color name="gray_dd">#FFDDDDDD</color>
+    <color name="gray_ee">#FFEEEEEE</color>
 </resources>
