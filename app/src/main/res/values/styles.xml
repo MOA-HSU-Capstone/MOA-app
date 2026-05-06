@@ -5,12 +5,11 @@
         <item name="itemTextColor">@color/bottom_nav_item_color</item>
     </style>
 
-    <!-- MaterialButton: tint 기반 배경(상태별) — drawable+transparent는 흰 배경으로 보일 수 있음 -->
     <style name="AppButtonPrimary" parent="Widget.Material3.Button">
-        <item name="backgroundTint">@color/button_primary_background_tint</item>
+        <item name="android:background">@drawable/button_primary_background</item>
+        <item name="backgroundTint">@android:color/transparent</item>
         <item name="android:textColor">@color/button_primary_text</item>
-        <item name="rippleColor">@color/gray_400</item>
-        <item name="cornerRadius">8dp</item>
+        <item name="rippleColor">@color/gray_88</item>
         <item name="android:textStyle">bold</item>
         <item name="android:paddingTop">12dp</item>
         <item name="android:paddingBottom">12dp</item>

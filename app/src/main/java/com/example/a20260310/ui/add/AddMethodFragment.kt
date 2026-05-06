@@ -244,10 +244,9 @@ class AddMethodFragment : Fragment(R.layout.fragment_add_method) {
             requireView().findViewById(R.id.selectedFilesContainer),
             false,
         )
-        val cardW = 108.dpToPx()
-        val cardH = 120.dpToPx()
+        val sizePx = 92.dpToPx()
         val endMarginPx = 16.dpToPx()
-        card.layoutParams = LinearLayout.LayoutParams(cardW, cardH).apply {
+        card.layoutParams = LinearLayout.LayoutParams(sizePx, sizePx).apply {
             marginEnd = endMarginPx
         }
 
@@ -255,15 +254,12 @@ class AddMethodFragment : Fragment(R.layout.fragment_add_method) {
         val name = card.findViewById<TextView>(R.id.nameText)
         val remove = card.findViewById<ImageButton>(R.id.removeButton)
 
-        val fallbackLabel = when (file.type) {
+        name.text = when (file.type) {
             SelectedSourceFile.Type.AUDIO_RECORD -> "녹음"
             SelectedSourceFile.Type.AUDIO_UPLOAD -> "음성"
             SelectedSourceFile.Type.IMAGE -> "사진"
             SelectedSourceFile.Type.DOCUMENT -> "문서"
         }
-        name.text = file.displayName.trim().ifBlank { fallbackLabel }
-
-        preview.scaleType = ImageView.ScaleType.FIT_CENTER
         when (file.type) {
             SelectedSourceFile.Type.AUDIO_RECORD,
             SelectedSourceFile.Type.AUDIO_UPLOAD -> preview.setImageResource(R.drawable.moa_microphone)

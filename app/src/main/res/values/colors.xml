@@ -1,14 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Semantic (monochrome) -->
-    <color name="color_primary">#FF000000</color>
-    <color name="color_on_primary">#FFFFFFFF</color>
-    <color name="color_background">#FFFFFFFF</color>
-    <color name="color_surface">#FFFFFFFF</color>
-    <color name="color_text_primary">#FF000000</color>
-    <color name="color_text_secondary">#FF666666</color>
-    <color name="color_divider">#FFCCCCCC</color>
+    <!-- App defaults -->
+    <color name="app_background">#FFFFFFFF</color>
+    <color name="text_primary">#FF000000</color>
 
+<<<<<<< HEAD
     <!-- Gray scale (900 darkest → 100 lightest) -->
     <color name="gray_900">#FF111111</color>
     <color name="gray_800">#FF222222</color>
@@ -28,4 +24,31 @@
     <color name="moa_bg">#FFFAF7</color>
     <color name="moa_text_primary">#1C1C1C</color>
     <color name="moa_text_secondary">#666666</color>
+=======
+    <!-- Base -->
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- MOA brand (refactor branch) -->
+    <color name="moa_orange">#FFD79664</color>
+    <color name="moa_orange_soft">#FFF2D7C8</color>
+    <color name="moa_line">#FFE9E2DC</color>
+    <color name="moa_bg">#FFFFFAF7</color>
+
+    <!-- Grayscale (AA/BB/… resource names must be lowercase on Android) -->
+    <color name="gray_11">#FF111111</color>
+    <color name="gray_22">#FF222222</color>
+    <color name="gray_33">#FF333333</color>
+    <color name="gray_44">#FF444444</color>
+    <color name="gray_55">#FF555555</color>
+    <color name="gray_66">#FF666666</color>
+    <color name="gray_77">#FF777777</color>
+    <color name="gray_88">#FF888888</color>
+    <color name="gray_99">#FF999999</color>
+    <color name="gray_aa">#FFAAAAAA</color>
+    <color name="gray_bb">#FFBBBBBB</color>
+    <color name="gray_cc">#FFCCCCCC</color>
+    <color name="gray_dd">#FFDDDDDD</color>
+    <color name="gray_ee">#FFEEEEEE</color>
+>>>>>>> parent of 6c4e7b8 (feat: 로그인 더미 페이지, 배치 수정, 컬러수정)
 </resources>

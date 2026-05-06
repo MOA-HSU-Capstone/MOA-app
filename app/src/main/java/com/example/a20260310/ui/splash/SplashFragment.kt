@@ -13,7 +13,7 @@ class SplashFragment : Fragment(R.layout.fragment_splash) {
     private val goNext = Runnable {
         val navController = findNavController()
         if (navController.currentDestination?.id == R.id.splashFragment) {
-            navController.navigate(R.id.action_splashFragment_to_loginFragment)
+            navController.navigate(R.id.action_splashFragment_to_homeFragment)
         }
     }
 
