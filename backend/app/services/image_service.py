@@ -15,6 +15,8 @@ upload_router
     ↓
 image_service
     ↓
+meeting_repository
+    ↓
 file_manager
     ↓
 preprocess
@@ -26,12 +28,12 @@ image_repository
 
 from __future__ import annotations
 
-from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
+from sqlalchemy.orm import Session
 
-from repositories.meeting_repository import get_meeting_by_id
 from ai.image_ocr import process_image_by_type
 from repositories.image_repository import create_image
+from repositories.meeting_repository import get_meeting_by_id
 from schemas.image_schema import ImageCreate, ImageResponse, ImageUploadResponse
 from storage.file_manager import save_image_file
 from utils.pdf_extract import extract_pdf_plain_text
@@ -67,6 +69,15 @@ def process_uploaded_image(
     -------
     ImageUploadResponse
         업로드 후 OCR/분석 결과를 포함한 응답
+
+    동작 방식
+    --------
+    0. meeting 존재 여부 확인
+    1. 이미지 파일 저장
+    2. 이미지 전처리
+    3. image_type에 따라 OCR / 분석 수행
+    4. image DB 저장
+    5. 응답 반환
     """
     # 0. meeting 존재 확인
     meeting = get_meeting_by_id(db, meeting_id)
@@ -76,8 +87,20 @@ def process_uploaded_image(
             detail="해당 meeting_id의 회의가 없습니다.",
         )
 
-    # 1. 이미지(또는 PDF 등) 파일 저장
-    saved_path = save_image_file(upload_file)
+    # 0-1. image_type 방어적 검증
+    # upload_router에서 이미 검증하지만, 서비스 계층에서도 한 번 더 확인
+    if image_type not in {"image", "whiteboard"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="image_type은 'image' 또는 'whiteboard'만 가능합니다.",
+        )
+
+    # 1. 이미지 파일 저장
+    # meeting_id를 함께 넘겨 회의별 폴더에 저장되도록 처리
+    saved_path = save_image_file(
+        upload_file=upload_file,
+        meeting_id=meeting_id,
+    )
 
     # 2. PDF는 텍스트 레이어만 추출(스캔 PDF는 비어 있을 수 있음). 그 외(이미지)는 비전 OCR.
     lower = saved_path.lower()
@@ -109,8 +132,8 @@ def process_uploaded_image(
         meeting_id=meeting_id,
         file_path=processed_path,
         image_type=image_type,
-        ocr_text=image_result.get("ocr_text"),
-        analysis_text=image_result.get("analysis_text"),
+        ocr_text=(image_result.get("ocr_text") or "").strip(),
+        analysis_text=(image_result.get("analysis_text") or "").strip(),
     )
 
     image = create_image(db, image_data)
@@ -139,6 +162,11 @@ def get_meeting_images(
 
     meeting_id : int
         회의 ID
+
+    Returns
+    -------
+    list[ImageResponse]
+        해당 회의에 연결된 이미지 목록
     """
 
     from repositories.image_repository import get_images_by_meeting_id

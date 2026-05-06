@@ -46,7 +46,7 @@ class MainActivity : AppCompatActivity() {
         navView.setupWithNavController(navController)
 
         navController.addOnDestinationChangedListener { _, destination, _ ->
-            val fullScreen = setOf(R.id.splashFragment)
+            val fullScreen = setOf(R.id.splashFragment, R.id.loginFragment)
             val showChrome = destination.id !in fullScreen
 
             toolbar.visibility = if (showChrome) android.view.View.VISIBLE else android.view.View.GONE

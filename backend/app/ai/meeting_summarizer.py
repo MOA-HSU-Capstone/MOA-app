@@ -4,9 +4,9 @@ meeting_summarizer.py
 회의 요약 LLM 엔진
 
 역할
-- STT 텍스트와 OCR 텍스트를 입력받아
+- STT JSON / OCR JSON payload를 입력받아
   OpenAI API를 통해 구조화된 회의 요약 결과를 생성
-- 반환 형식은 JSON(dict)
+- 반환 형식은 summary / decisions / action_items 만 포함한 dict
 
 반환 예시
 ---------
@@ -25,6 +25,8 @@ meeting_summarizer.py
 특징
 - OpenAI 클라이언트는 config/openai_client.py를 사용
 - 모델명은 config/settings.py에서 읽음
+- STT와 OCR은 LLM 입력에는 함께 사용하지만,
+  반환은 최종 요약 결과만 제공
 """
 
 from __future__ import annotations
@@ -42,7 +44,7 @@ logger = logging.getLogger(__name__)
 
 def _build_prompt(stt_text: str, ocr_text: str, title: str = "") -> str:
     """
-    LLM에 전달할 프롬프트 생성
+    STT 텍스트 + OCR 텍스트를 LLM에 전달할 프롬프트 생성
     """
 
     stt_text = (stt_text or "").strip()
@@ -77,6 +79,40 @@ def _build_prompt(stt_text: str, ocr_text: str, title: str = "") -> str:
     )
 
 
+def _build_payload_prompt(payload: Dict[str, Any]) -> str:
+    """
+    STT JSON + OCR JSON + 회의 메타데이터를 하나의 payload로 받아
+    LLM에 전달할 프롬프트 생성
+    """
+
+    payload_json = json.dumps(payload, ensure_ascii=False, indent=2)
+
+    return (
+        "당신은 회의 내용을 구조화하는 분석가입니다.\n"
+        "입력으로 회의 메타데이터, STT JSON, OCR/이미지 분석 JSON이 주어집니다.\n"
+        "이 정보를 종합하여 회의 결과를 추출하세요.\n"
+        "\n"
+        "규칙:\n"
+        '- 출력은 오직 유효한 JSON만 허용합니다(마크다운/설명/코드펜스 금지).\n'
+        '- 입력에 명시적으로 없는 내용은 절대 추측하거나 추가하지 마세요.\n'
+        '- 알 수 없는 값은 빈 문자열 "" 또는 빈 리스트 []로 두세요.\n'
+        '- STT 내용과 OCR/이미지 분석 내용을 함께 참고하세요.\n'
+        '- OCR/이미지 분석 내용은 회의 맥락 보강용 자료이므로, STT와 충돌하면 더 보수적으로 요약하세요.\n'
+        "\n"
+        "반환 JSON 형식:\n"
+        "{\n"
+        '  "summary": "...",\n'
+        '  "decisions": ["..."],\n'
+        '  "action_items": [\n'
+        '    { "task": "...", "owner": "...", "deadline": "..." }\n'
+        "  ]\n"
+        "}\n"
+        "\n"
+        "입력 payload(JSON):\n"
+        f"{payload_json}\n"
+    )
+
+
 def _extract_json_text(raw: str) -> str:
     """
     모델 응답에서 JSON 본문만 최대한 안전하게 추출
@@ -96,24 +132,9 @@ def _extract_json_text(raw: str) -> str:
     return raw
 
 
-def summarize_meeting_from_text(
-    stt_text: str,
-    ocr_text: str,
-    title: str = "",
-) -> Dict[str, Any]:
+def _call_llm(prompt: str) -> Dict[str, Any]:
     """
-    전처리된 STT 텍스트 + OCR 텍스트를 기반으로 회의 요약 수행
-
-    Parameters
-    ----------
-    stt_text : str
-        전처리된 STT 텍스트
-
-    ocr_text : str
-        OCR 추출 텍스트
-
-    title : str
-        회의 제목
+    공통 OpenAI 호출 함수
 
     Returns
     -------
@@ -123,12 +144,6 @@ def summarize_meeting_from_text(
 
     if not settings.openai_api_key:
         raise RuntimeError("OPENAI_API_KEY가 설정되지 않았습니다.")
-
-    prompt = _build_prompt(
-        stt_text=stt_text,
-        ocr_text=ocr_text,
-        title=title,
-    )
 
     client = get_openai_client()
 
@@ -177,29 +192,62 @@ def summarize_meeting_from_text(
     return parsed
 
 
+def summarize_meeting_from_text(
+    stt_text: str,
+    ocr_text: str,
+    title: str = "",
+) -> Dict[str, Any]:
+    """
+    STT 텍스트 + OCR 텍스트를 기반으로 회의 요약 수행
+
+    Returns
+    -------
+    Dict[str, Any]
+        {
+            "summary": "...",
+            "decisions": [...],
+            "action_items": [...]
+        }
+    """
+
+    stt_text = (stt_text or "").strip()
+    ocr_text = (ocr_text or "").strip()
+    title = (title or "").strip()
+
+    prompt = _build_prompt(
+        stt_text=stt_text,
+        ocr_text=ocr_text,
+        title=title,
+    )
+
+    return _call_llm(prompt)
+
+
+def summarize_meeting_from_payload(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    STT JSON + OCR JSON payload 전체를 기반으로 회의 요약 수행
+
+    주의
+    ----
+    - payload 안의 STT/OCR 데이터는 LLM 입력용으로 사용
+    - 반환은 최종 summary 결과만 제공
+    """
+
+    if not payload:
+        raise RuntimeError("LLM에 전달할 payload가 비어 있습니다.")
+
+    prompt = _build_payload_prompt(payload)
+    return _call_llm(prompt)
+
+
 def summarize_meeting(
     stt_segments: Sequence[Any],
     ocr_text: str,
     title: str = "",
 ) -> Dict[str, Any]:
     """
+    기존 호환용 함수:
     STT 세그먼트 배열 + OCR 텍스트를 기반으로 회의 요약 수행
-
-    Parameters
-    ----------
-    stt_segments : Sequence[Any]
-        STT 세그먼트 배열 또는 STT JSON 리스트
-
-    ocr_text : str
-        OCR 추출 텍스트
-
-    title : str
-        회의 제목
-
-    Returns
-    -------
-    Dict[str, Any]
-        구조화된 회의 요약 결과
     """
 
     stt_text = stt_json_to_text(stt_segments)

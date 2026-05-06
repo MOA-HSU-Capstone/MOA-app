@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/moa_bg"
+    android:background="@color/color_background"
     android:fillViewport="true">
 
     <LinearLayout
@@ -17,10 +17,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
-            app:cardBackgroundColor="@android:color/white"
+            app:cardBackgroundColor="@color/color_surface"
             app:cardCornerRadius="16dp"
             app:cardElevation="0dp"
-            app:strokeColor="@color/moa_line"
+            app:strokeColor="@color/color_divider"
             app:strokeWidth="1dp">
 
             <LinearLayout
@@ -52,10 +52,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
-            app:cardBackgroundColor="@android:color/white"
+            app:cardBackgroundColor="@color/color_surface"
             app:cardCornerRadius="16dp"
             app:cardElevation="0dp"
-            app:strokeColor="@color/moa_line"
+            app:strokeColor="@color/color_divider"
             app:strokeWidth="1dp">
 
             <LinearLayout
@@ -92,10 +92,10 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginBottom="12dp"
-            app:cardBackgroundColor="@android:color/white"
+            app:cardBackgroundColor="@color/color_surface"
             app:cardCornerRadius="16dp"
             app:cardElevation="0dp"
-            app:strokeColor="@color/moa_line"
+            app:strokeColor="@color/color_divider"
             app:strokeWidth="1dp">
 
             <LinearLayout
@@ -129,12 +129,10 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/closeButton"
+            style="@style/AppButtonPrimary"
             android:layout_width="match_parent"
-            android:layout_height="52dp"
-            android:text="@string/summary_done"
-            android:textColor="@android:color/white"
-            app:backgroundTint="@color/moa_orange"
-            app:cornerRadius="16dp" />
+            android:layout_height="wrap_content"
+            android:text="@string/summary_done" />
 
     </LinearLayout>
 </ScrollView>

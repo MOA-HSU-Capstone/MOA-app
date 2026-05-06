@@ -233,7 +233,7 @@ def read_full_transcript(
     if transcript_text is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="해당 회의를 찾을 수 없습니다.",
+            detail="회의가 없거나 summary 생성에 사용할 STT/OCR 데이터가 존재하지 않습니다.",
         )
 
     return {

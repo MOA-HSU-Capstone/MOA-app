@@ -1,5 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Semantic (monochrome) -->
+    <color name="color_primary">#FF000000</color>
+    <color name="color_on_primary">#FFFFFFFF</color>
+    <color name="color_background">#FFFFFFFF</color>
+    <color name="color_surface">#FFFFFFFF</color>
+    <color name="color_text_primary">#FF000000</color>
+    <color name="color_text_secondary">#FF666666</color>
+    <color name="color_divider">#FFCCCCCC</color>
+
+    <!-- Gray scale (900 darkest → 100 lightest) -->
+    <color name="gray_900">#FF111111</color>
+    <color name="gray_800">#FF222222</color>
+    <color name="gray_700">#FF333333</color>
+    <color name="gray_600">#FF666666</color>
+    <color name="gray_500">#FF888888</color>
+    <color name="gray_400">#FFAAAAAA</color>
+    <color name="gray_300">#FFCCCCCC</color>
+    <color name="gray_200">#FFDDDDDD</color>
+    <color name="gray_100">#FFEEEEEE</color>
+  
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
     <color name="moa_orange">#D79664</color>

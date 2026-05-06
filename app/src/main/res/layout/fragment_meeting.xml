@@ -17,6 +17,7 @@
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/primaryButton"
+        style="@style/AppButtonPrimary"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"

@@ -1,7 +1,25 @@
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base application theme. -->
+    <!-- Same monochrome palette in night for consistent productivity UI. -->
     <style name="Base.Theme.A20260310" parent="Theme.Material3.DayNight.NoActionBar">
-        <!-- Customize your dark theme here. -->
-        <!-- <item name="colorPrimary">@color/my_dark_primary</item> -->
+        <item name="bottomNavigationStyle">@style/Widget.A20260310.BottomNavigationView</item>
+        <item name="android:windowBackground">@color/color_background</item>
+        <item name="android:colorBackground">@color/color_background</item>
+        <item name="android:textColorPrimary">@color/color_text_primary</item>
+        <item name="colorSurface">@color/color_surface</item>
+        <item name="colorOnSurface">@color/color_text_primary</item>
+        <item name="colorOnSurfaceVariant">@color/color_text_secondary</item>
+        <item name="colorPrimary">@color/color_primary</item>
+        <item name="colorOnPrimary">@color/color_on_primary</item>
+        <item name="colorPrimaryContainer">@color/gray_100</item>
+        <item name="colorOnPrimaryContainer">@color/color_text_primary</item>
+        <item name="colorSecondary">@color/gray_700</item>
+        <item name="colorOnSecondary">@color/color_on_primary</item>
+        <item name="colorSecondaryContainer">@color/gray_100</item>
+        <item name="colorOnSecondaryContainer">@color/color_text_primary</item>
+        <item name="colorTertiary">@color/gray_700</item>
+        <item name="colorOnTertiary">@color/color_on_primary</item>
+        <item name="colorTertiaryContainer">@color/gray_100</item>
+        <item name="colorOnTertiaryContainer">@color/color_text_primary</item>
+        <item name="colorOutline">@color/color_divider</item>
     </style>
 </resources>

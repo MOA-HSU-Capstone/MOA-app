@@ -22,7 +22,6 @@ from config.database import engine
 from models import Base
 from routers import meeting_router, upload_router
 
-
 # -----------------------------------------
 # FastAPI 앱 생성
 # -----------------------------------------

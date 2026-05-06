@@ -53,3 +53,6 @@ build/
 .vscode/
 .idea/
 
+# DB files
+*.db
+local_dev.db

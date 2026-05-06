@@ -29,4 +29,11 @@
     <string name="summarizing_title">요약 중</string>
     <string name="summarizing_message">회의 내용을 분석하고 있습니다…</string>
     <string name="summarizing_error_generic">요약 처리 중 오류가 발생했습니다.</string>
+
+    <string name="login_title">로그인</string>
+    <string name="login_subtitle">MOA 회의록 서비스를 이용하려면 로그인하세요.</string>
+    <string name="login_email_hint">이메일</string>
+    <string name="login_password_hint">비밀번호</string>
+    <string name="login_button">로그인</string>
+    <string name="login_error_empty">이메일과 비밀번호를 입력해 주세요.</string>
 </resources>

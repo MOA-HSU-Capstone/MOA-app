@@ -3,7 +3,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/moa_bg"
+    android:background="@color/color_background"
     android:padding="16dp">
 
     <TextView
@@ -23,7 +23,7 @@
         android:layout_marginTop="16dp"
         app:cardCornerRadius="22dp"
         app:cardElevation="0dp"
-        app:strokeColor="@color/moa_line"
+        app:strokeColor="@color/color_divider"
         app:strokeWidth="1dp"
         app:layout_constraintBottom_toTopOf="@id/closeButton"
         app:layout_constraintEnd_toEndOf="parent"
@@ -41,12 +41,10 @@
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/closeButton"
+        style="@style/AppButtonPrimary"
         android:layout_width="0dp"
-        android:layout_height="52dp"
+        android:layout_height="wrap_content"
         android:text="닫기"
-        android:textColor="@android:color/white"
-        app:backgroundTint="@color/moa_orange"
-        app:cornerRadius="16dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
