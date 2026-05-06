@@ -93,7 +93,7 @@ class RecordingFragment : Fragment(R.layout.fragment_recording) {
                         )
 
                         findNavController().navigate(
-                            R.id.action_recordingFragment_to_summarizingFragment
+                            R.id.action_summarizingFragment_to_summaryFragment
                         )
 
                     } else {
@@ -111,7 +111,8 @@ class RecordingFragment : Fragment(R.layout.fragment_recording) {
 
             val meetingName = prefs.getString("current_meeting_name", fileName)
             val folderName = prefs.getString("selected_folder", "전체")
-            val folder = getOrCreateFolder(requireContext(), folderName)
+            val safeFolderName = folderName ?: "default"
+            val folder = getOrCreateFolder(requireContext(), safeFolderName)
             val file = File(folder, fileName)
 
             currentFile = file

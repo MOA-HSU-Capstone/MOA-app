@@ -4,7 +4,9 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/moa_bg"
-    android:padding="16dp">
+    android:padding="16dp"
+    app:strokeWidth="2dp"
+    app:strokeColor="@color/moa_line">
 
     <TextView
         android:id="@+id/title"
