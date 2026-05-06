@@ -21,43 +21,57 @@ class DetailFragment : Fragment(R.layout.fragment_detail) {
         val title = view.findViewById<TextView>(R.id.title)
         val summaryBtn = view.findViewById<MaterialButton>(R.id.tabSummary)
         val fileBtn = view.findViewById<MaterialButton>(R.id.tabFiles)
-        val content = view.findViewById<TextView>(R.id.content)
+        //val content = view.findViewById<TextView>(R.id.content)
         val recycler = view.findViewById<RecyclerView>(R.id.fileRecycler)
-
+        val summaryScroll = view.findViewById<View>(R.id.summaryScroll)
         val meetingTitle = arguments?.getString("meetingTitle") ?: "회의"
         title.text = meetingTitle
 
         recycler.layoutManager = LinearLayoutManager(requireContext())
 
-        // 기본 = 요약
-        showSummary(content, recycler)
+        updateTabs(summaryBtn, fileBtn)
 
         summaryBtn.setOnClickListener {
             isSummaryTab = true
-            showSummary(content, recycler)
+            updateTabs(summaryBtn, fileBtn)
+            showSummary(summaryScroll, recycler)
         }
 
         fileBtn.setOnClickListener {
             isSummaryTab = false
-            showFiles(recycler, content)
+            updateTabs(summaryBtn, fileBtn)
+            showFiles(summaryScroll, recycler)
         }
     }
 
-    private fun showSummary(content: TextView, recycler: RecyclerView) {
-        recycler.visibility = View.GONE
-        content.visibility = View.VISIBLE
+    private fun updateTabs(summaryBtn: MaterialButton, fileBtn: MaterialButton) {
 
-        //나중에 수정
-        //content.text = "1. 해시 함수 이해\n- 요약 내용 예시"
+        if (isSummaryTab) {
+            summaryBtn.setBackgroundColor(resources.getColor(R.color.moa_orange, null))
+            summaryBtn.setTextColor(resources.getColor(android.R.color.white, null))
+
+            fileBtn.setBackgroundColor(resources.getColor(R.color.moa_bg, null))
+            fileBtn.setTextColor(resources.getColor(R.color.moa_orange_soft, null))
+
+        } else {
+            fileBtn.setBackgroundColor(resources.getColor(R.color.moa_orange, null))
+            fileBtn.setTextColor(resources.getColor(android.R.color.white, null))
+
+            summaryBtn.setBackgroundColor(resources.getColor(R.color.moa_bg, null))
+            summaryBtn.setTextColor(resources.getColor(R.color.moa_orange_soft, null))
+        }
     }
 
-    private fun showFiles(recycler: RecyclerView, content: TextView) {
-        content.visibility = View.GONE
+    private fun showSummary(summaryScroll: View, recycler: RecyclerView) {
+        summaryScroll.visibility = View.VISIBLE
+        recycler.visibility = View.GONE
+    }
+
+    private fun showFiles(summaryScroll: View, recycler: RecyclerView) {
+        summaryScroll.visibility = View.GONE
         recycler.visibility = View.VISIBLE
 
-        val files = loadFiles()
-
-        recycler.adapter = HomeFragment.SimpleRowAdapter(files) {}
+        recycler.adapter = HomeFragment.SimpleRowAdapter(loadFiles()) {}
     }
 
     private fun loadFiles(): List<SimpleRow> {

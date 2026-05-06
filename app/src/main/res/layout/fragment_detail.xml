@@ -1,173 +1,156 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:background="@color/moa_bg"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    xmlns:app="http://schemas.android.com/apk/res-auto">
+    android:layout_height="match_parent">
 
+    <!-- 상단 -->
     <LinearLayout
+        android:id="@+id/topArea"
         android:orientation="vertical"
         android:padding="16dp"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
 
-        <!-- 제목 -->
         <TextView
             android:id="@+id/title"
             android:textSize="22sp"
             android:textStyle="bold"
+            android:textColor="@color/moa_text_primary"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"/>
 
         <!-- 탭 -->
         <LinearLayout
-            android:orientation="horizontal"
-            android:layout_marginTop="12dp"
+            android:id="@+id/tabContainer"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content">
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="horizontal">
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/tabSummary"
+                android:layout_width="0dp"
+                android:layout_height="48dp"
                 android:layout_weight="1"
                 android:text="요약"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"/>
+                android:padding="0dp"
+                app:cornerRadius="0dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="@color/moa_line"/>
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/tabFiles"
-                android:layout_weight="1"
-                android:text="업로드 파일"
                 android:layout_width="0dp"
-                android:layout_height="wrap_content"/>
+                android:layout_height="48dp"
+                android:layout_weight="1"
+                android:text="파일"
+                android:padding="0dp"
+                app:cornerRadius="0dp"
+                app:strokeWidth="1dp"
+                app:strokeColor="@color/moa_line"/>
+
         </LinearLayout>
-
-        <!-- 요약 -->
-        <TextView
-            android:id="@+id/content"
-            android:layout_marginTop="20dp"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"/>
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardSummary"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardBackgroundColor="@android:color/white"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="0dp"
-            app:strokeColor="@color/moa_line"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="회의 요약"
-                    android:textAppearance="?attr/textAppearanceTitleMedium"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/tvSummary"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:lineSpacingExtra="4dp"
-                    android:text="요약 결과가 여기에 표시됩니다."
-                    android:textAppearance="?attr/textAppearanceBodyMedium" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardDecisions"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardBackgroundColor="@android:color/white"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="0dp"
-            app:strokeColor="@color/moa_line"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="결정 사항"
-                    android:textAppearance="?attr/textAppearanceTitleMedium"
-                    android:textStyle="bold" />
-
-                <LinearLayout
-                    android:id="@+id/layoutDecisions"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="- 결정 사항이 여기에 추가됩니다."
-                        android:textAppearance="?attr/textAppearanceBodyMedium" />
-                </LinearLayout>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/cardActionItems"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="12dp"
-            app:cardBackgroundColor="@android:color/white"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="0dp"
-            app:strokeColor="@color/moa_line"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="할 일"
-                    android:textAppearance="?attr/textAppearanceTitleMedium"
-                    android:textStyle="bold" />
-
-                <LinearLayout
-                    android:id="@+id/layoutActionItems"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:orientation="vertical">
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="- 할 일 항목이 여기에 추가됩니다."
-                        android:textAppearance="?attr/textAppearanceBodyMedium" />
-                </LinearLayout>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- 파일 리스트 -->
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/fileRecycler"
-            android:visibility="gone"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"/>
-
     </LinearLayout>
+
+    <!-- 🔥 요약 전체 -->
+    <ScrollView
+        android:id="@+id/summaryScroll"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toBottomOf="@id/topArea"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <LinearLayout
+            android:padding="16dp"
+            android:orientation="vertical"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <!-- 요약 -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/MoaCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"                >
+
+                <LinearLayout style="@style/MoaCardContent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content">
+                    <TextView style="@style/MoaCardTitle" android:text="회의 요약"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+
+                    <TextView
+                        android:id="@+id/tvSummary"
+                        style="@style/MoaCardBody"
+                        android:text="- 요약 결과가 여기에 표시됩니다."
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 결정 -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/MoaCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout style="@style/MoaCardContent"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content">
+                    <TextView style="@style/MoaCardTitle" android:text="결정 사항"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                    <TextView
+                        android:id="@+id/layoutDecisions"
+                        style="@style/MoaCardBody"
+                        android:text="- 결정 사항이 여기에 추가됩니다."
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- 할일 -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/MoaCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout style="@style/MoaCardContent"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content">
+                    <TextView style="@style/MoaCardTitle" android:text="할 일"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+
+                    <TextView
+                        android:id="@+id/layoutActionItems"
+                        style="@style/MoaCardBody"
+                        android:text="- 할 일 항목이 여기에 추가됩니다."
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- 🔥 파일 리스트 -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/fileRecycler"
+        android:visibility="gone"
+        android:padding="16dp"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        app:layout_constraintTop_toBottomOf="@id/topArea"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

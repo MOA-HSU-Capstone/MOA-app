@@ -6,4 +6,6 @@
     <color name="moa_orange_soft">#F2D7C8</color>
     <color name="moa_line">#E9E2DC</color>
     <color name="moa_bg">#FFFAF7</color>
+    <color name="moa_text_primary">#1C1C1C</color>
+    <color name="moa_text_secondary">#666666</color>
 </resources>
