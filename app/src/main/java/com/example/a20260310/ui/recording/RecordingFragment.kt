@@ -93,7 +93,7 @@ class RecordingFragment : Fragment(R.layout.fragment_recording) {
                         )
 
                         findNavController().navigate(
-                            R.id.action_summarizingFragment_to_summaryFragment
+                            R.id.action_recordingFragment_to_summarizingFragment
                         )
 
                     } else {
