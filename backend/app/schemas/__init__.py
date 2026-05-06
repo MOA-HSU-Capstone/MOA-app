@@ -22,6 +22,12 @@ from .transcript_schema import (
     TranscriptResponse,
     TranscriptSimpleResponse,
 )
+from .user_schema import (
+    TokenResponse,
+    UserCreate,
+    UserLogin,
+    UserResponse,
+)
 
 __all__ = [
     # meeting
@@ -44,4 +50,10 @@ __all__ = [
     "ImageCreate",
     "ImageResponse",
     "ImageUploadResponse",
+
+    # user / auth
+    "UserCreate",
+    "UserLogin",
+    "UserResponse",
+    "TokenResponse",
 ]

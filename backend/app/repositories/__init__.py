@@ -32,6 +32,11 @@ from .transcript_repository import (
     delete_transcript,
     get_transcripts_by_meeting_id,
 )
+from .user_repository import (
+    create_user,
+    get_user_by_email,
+    get_user_by_id,
+)
 
 __all__ = [
     # meeting
@@ -55,4 +60,9 @@ __all__ = [
     "create_image",
     "get_images_by_meeting_id",
     "delete_image",
+
+    # user
+    "create_user",
+    "get_user_by_email",
+    "get_user_by_id",
 ]

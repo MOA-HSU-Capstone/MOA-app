@@ -11,23 +11,25 @@ main.py
 
 실행 예시
 ---------
-pythom -m uvicorn main:app --reload
+python -m uvicorn main:app --reload
 uvicorn main:app --reload
 """
+
 from __future__ import annotations
 
 from fastapi import FastAPI
 
 from config.database import engine
 from models import Base
-from routers import meeting_router, upload_router
+from routers import auth_router, meeting_router, upload_router
+
 
 # -----------------------------------------
 # FastAPI 앱 생성
 # -----------------------------------------
 app = FastAPI(
     title="MOA Meeting Assistant API",
-    description="회의 오디오/이미지 업로드, transcript 저장, summary 생성 API",
+    description="회의 오디오/이미지 업로드, transcript 저장, summary 생성, 회원가입/로그인 API",
     version="1.0.0",
 )
 
@@ -49,6 +51,11 @@ def on_startup() -> None:
 
     현재는 SQLAlchemy Base에 등록된 모든 테이블을 생성한다.
     이미 존재하는 테이블은 다시 생성하지 않는다.
+
+    주의
+    - User, Meeting, Transcript, Image, Summary 모델이
+      Base에 등록되어 있어야 테이블이 생성된다.
+    - 따라서 models/__init__.py에서 각 모델을 import하고 있어야 한다.
     """
 
     Base.metadata.create_all(bind=engine)
@@ -84,5 +91,18 @@ def health_check() -> dict:
 # -----------------------------------------
 # 라우터 등록
 # -----------------------------------------
+# 인증 관련 API
+# - POST /auth/register
+# - POST /auth/login
+app.include_router(auth_router)
+
+# 회의 관련 API
+# - 회의 생성
+# - 회의 조회
+# - 요약 생성/조회
 app.include_router(meeting_router)
+
+# 업로드 관련 API
+# - 오디오 업로드
+# - 이미지 업로드
 app.include_router(upload_router)

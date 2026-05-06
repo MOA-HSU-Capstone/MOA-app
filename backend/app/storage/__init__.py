@@ -1,19 +1,30 @@
-# 파일 저장/경로 관리 패키지(placeholder).
-# 업로드 경로 규칙, 파일명 정책 등을 담당할 예정입니다.
+"""
+storage 패키지 초기화 파일
+
+역할
+- 파일 저장 및 업로드 경로 관련 함수들을 외부에서 쉽게 import 할 수 있도록 정리
+"""
 
 from .file_manager import save_audio_file, save_image_file
 from .upload_paths import (
-    AUDIO_UPLOAD_DIR,
     BASE_UPLOAD_DIR,
-    IMAGE_UPLOAD_DIR,
-    ensure_upload_dirs,
+    MEETINGS_UPLOAD_DIR,
+    get_meeting_upload_dir,
+    get_meeting_audio_dir,
+    get_meeting_image_dir,
+    ensure_base_upload_dirs,
+    ensure_meeting_upload_dirs,
 )
+
 
 __all__ = [
     "BASE_UPLOAD_DIR",
-    "AUDIO_UPLOAD_DIR",
-    "IMAGE_UPLOAD_DIR",
-    "ensure_upload_dirs",
+    "MEETINGS_UPLOAD_DIR",
+    "get_meeting_upload_dir",
+    "get_meeting_audio_dir",
+    "get_meeting_image_dir",
+    "ensure_base_upload_dirs",
+    "ensure_meeting_upload_dirs",
     "save_audio_file",
     "save_image_file",
 ]

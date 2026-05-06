@@ -25,13 +25,18 @@ import shutil
 import uuid
 from pathlib import Path
 
+from storage.upload_paths import ensure_meeting_upload_dirs
+
 
 # -----------------------------------------
 # 내부 유틸
 # -----------------------------------------
 def _generate_unique_filename(original_filename: str | None) -> str:
     """
-    원본 파일명을 기반으로 UUID를 붙여 고유 파일명 생성
+    원본 파일명을 기반으로 UUID 파일명 생성
+
+    원본 파일명 자체는 저장하지 않고,
+    확장자만 유지해서 파일명 충돌과 한글/공백 문제를 줄인다.
     """
 
     suffix = ""
@@ -42,34 +47,19 @@ def _generate_unique_filename(original_filename: str | None) -> str:
     return f"{uuid.uuid4().hex}{suffix}"
 
 
-def _ensure_meeting_dirs(meeting_id: int) -> tuple[str, str]:
-    """
-    meeting_id 기준 폴더 생성
-
-    Returns
-    -------
-    (audio_dir, image_dir)
-    """
-
-    base_dir = os.path.join("uploads", "meetings", str(meeting_id))
-    audio_dir = os.path.join(base_dir, "audio")
-    image_dir = os.path.join(base_dir, "images")
-
-    os.makedirs(audio_dir, exist_ok=True)
-    os.makedirs(image_dir, exist_ok=True)
-
-    return audio_dir, image_dir
-
-
 # -----------------------------------------
 # 오디오 저장
 # -----------------------------------------
 def save_audio_file(upload_file, meeting_id: int) -> str:
     """
-    업로드된 오디오 파일을 meeting_id 폴더에 저장
+    업로드된 오디오 파일을 meeting_id 기준 audio 폴더에 저장
+
+    저장 예시
+    --------
+    uploads/meetings/1/audio/{uuid}.wav
     """
 
-    audio_dir, _ = _ensure_meeting_dirs(meeting_id)
+    audio_dir, _ = ensure_meeting_upload_dirs(meeting_id)
 
     filename = _generate_unique_filename(upload_file.filename)
     save_path = os.path.join(audio_dir, filename)
@@ -85,10 +75,14 @@ def save_audio_file(upload_file, meeting_id: int) -> str:
 # -----------------------------------------
 def save_image_file(upload_file, meeting_id: int) -> str:
     """
-    업로드된 이미지 파일을 meeting_id 폴더에 저장
+    업로드된 이미지 파일을 meeting_id 기준 images 폴더에 저장
+
+    저장 예시
+    --------
+    uploads/meetings/1/images/{uuid}.png
     """
 
-    _, image_dir = _ensure_meeting_dirs(meeting_id)
+    _, image_dir = ensure_meeting_upload_dirs(meeting_id)
 
     filename = _generate_unique_filename(upload_file.filename)
     save_path = os.path.join(image_dir, filename)

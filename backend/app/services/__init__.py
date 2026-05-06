@@ -8,28 +8,34 @@ services 패키지 초기화 파일
 
 예시
 ----
-from services import create_new_meeting, process_uploaded_audio
+from services import create_new_meeting, process_uploaded_audio, register_user
 """
 
 # audio
 from .audio_service import process_uploaded_audio
 
+# auth
+from .auth_service import (
+    login_user,
+    register_user,
+)
+
 # image
 from .image_service import (
-    process_uploaded_image,
     get_meeting_images,
+    process_uploaded_image,
 )
 
 # meeting
 from .meeting_service import (
     create_new_meeting,
+    create_summary_for_meeting,
+    get_full_transcript_for_meeting,
     get_meeting_detail,
     get_meeting_list,
-    update_meeting_detail,
-    remove_meeting,
-    create_summary_for_meeting,
     get_summary_for_meeting,
-    get_full_transcript_for_meeting,
+    remove_meeting,
+    update_meeting_detail,
 )
 
 # stt
@@ -39,7 +45,10 @@ from .stt_service import transcribe_audio_file
 __all__ = [
     # audio
     "process_uploaded_audio",
-    "transcribe_audio_file",
+
+    # auth
+    "register_user",
+    "login_user",
 
     # image
     "process_uploaded_image",
@@ -53,6 +62,8 @@ __all__ = [
     "remove_meeting",
     "create_summary_for_meeting",
     "get_summary_for_meeting",
-    "get_full_transcript_for_meeting", 
+    "get_full_transcript_for_meeting",
 
+    # stt
+    "transcribe_audio_file",
 ]
