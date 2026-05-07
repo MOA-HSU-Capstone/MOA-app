@@ -112,6 +112,12 @@ class MeetingCreateFragment : Fragment(R.layout.fragment_meeting_create) {
 
             val prefs = requireContext().getSharedPreferences("moa_prefs", 0)
             prefs.edit().putString("current_meeting_name", fullTitle).apply()
+            prefs.edit()
+                .putString(
+                    "${fullTitle}_participants",
+                    participants.joinToString(", ")
+                )
+                .apply()
 
             sessionViewModel.setDraft(
                 MeetingDraft(
