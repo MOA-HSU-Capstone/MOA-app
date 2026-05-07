@@ -8,30 +8,26 @@
     android:background="@color/color_background"
     android:padding="16dp">
 
-    <!-- 폴더 탭 -->
-    <HorizontalScrollView
-        android:id="@+id/folderScroll"
+    <TextView
+        android:id="@+id/title"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="12dp"
-        android:scrollbars="none"
-        app:layout_constraintEnd_toEndOf="parent"
+        android:text="@string/home_header"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="@color/color_text_primary"
+        app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/title">
-
-        <LinearLayout
-            android:id="@+id/folderTabs"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:orientation="horizontal" />
-    </HorizontalScrollView>
+        app:layout_constraintEnd_toEndOf="parent"/>
 
     <!-- 폴더 탭 -->
     <HorizontalScrollView
         android:id="@+id/folderScroll"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:minHeight="56dp"
         android:layout_marginTop="12dp"
+        android:layout_marginBottom="8dp"
         android:scrollbars="none"
         app:layout_constraintTop_toBottomOf="@id/title"
         app:layout_constraintStart_toStartOf="parent"
@@ -41,7 +37,7 @@
             android:id="@+id/folderTabs"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"/>
+            android:orientation="horizontal" />
     </HorizontalScrollView>
 
     <androidx.recyclerview.widget.RecyclerView

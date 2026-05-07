@@ -71,7 +71,9 @@ class DetailFragment : Fragment(R.layout.fragment_detail) {
         summaryScroll.visibility = View.GONE
         recycler.visibility = View.VISIBLE
 
-        recycler.adapter = SimpleRowAdapter(loadFiles())
+        val files = loadFiles()
+
+        recycler.adapter = SimpleRowAdapter(files) {}
     }
 
     private fun loadFiles(): List<SimpleRow> {

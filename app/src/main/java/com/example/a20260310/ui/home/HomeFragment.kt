@@ -248,19 +248,40 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     }
 
     private fun createFolderButton(name: String): MaterialButton {
+
         val btn = MaterialButton(requireContext())
 
         btn.text = name
 
-        btn.setPadding(40, 16, 40, 16)
+        // 직사각형
+        btn.cornerRadius = 0
 
-        btn.strokeWidth = 2
-        btn.strokeColor = ColorStateList.valueOf(
-            ContextCompat.getColor(requireContext(), R.color.color_divider),
+        // 크기
+        val params = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
         )
 
-        btn.setBackgroundColor(ContextCompat.getColor(requireContext(), R.color.color_background))
-        btn.setTextColor(ContextCompat.getColor(requireContext(), R.color.color_text_secondary))
+        params.marginEnd = 0
+        btn.layoutParams = params
+
+        // 내부 여백
+        btn.setPadding(48, 20, 48, 20)
+
+        // 테두리
+        btn.strokeWidth = 2
+        btn.strokeColor = ColorStateList.valueOf(
+            ContextCompat.getColor(requireContext(), R.color.color_divider)
+        )
+
+        // 기본 색상
+        btn.setBackgroundColor(
+            ContextCompat.getColor(requireContext(), R.color.color_background)
+        )
+
+        btn.setTextColor(
+            ContextCompat.getColor(requireContext(), R.color.color_text_secondary)
+        )
 
         btn.setOnClickListener {
             selectedFolder = name
@@ -272,15 +293,30 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     }
 
     private fun updateTabs() {
+
         for (i in 0 until folderTabs.childCount) {
+
             val btn = folderTabs.getChildAt(i) as MaterialButton
 
             if (btn.text == selectedFolder) {
-                btn.setBackgroundColor(ContextCompat.getColor(requireContext(), R.color.color_primary))
-                btn.setTextColor(ContextCompat.getColor(requireContext(), R.color.color_on_primary))
+
+                btn.setBackgroundColor(
+                    ContextCompat.getColor(requireContext(), R.color.color_primary)
+                )
+
+                btn.setTextColor(
+                    ContextCompat.getColor(requireContext(), R.color.color_on_primary)
+                )
+
             } else {
-                btn.setBackgroundColor(ContextCompat.getColor(requireContext(), R.color.color_background))
-                btn.setTextColor(ContextCompat.getColor(requireContext(), R.color.color_text_secondary))
+
+                btn.setBackgroundColor(
+                    ContextCompat.getColor(requireContext(), R.color.color_background)
+                )
+
+                btn.setTextColor(
+                    ContextCompat.getColor(requireContext(), R.color.color_text_secondary)
+                )
             }
         }
     }
@@ -292,7 +328,17 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             getFilesByFolder(requireContext(), selectedFolder)
         }
 
-        recycler.adapter = SimpleRowAdapter(items)
+        recycler.adapter = SimpleRowAdapter(items) { item ->
+
+            val bundle = Bundle().apply {
+                putString("meetingTitle", item.title)
+            }
+
+            findNavController().navigate(
+                R.id.action_homeFragment_to_detailFragment,
+                bundle
+            )
+        }
     }
 }
 

@@ -22,7 +22,10 @@ class HistoryFragment : Fragment(R.layout.fragment_history) {
 
         view.findViewById<RecyclerView>(R.id.recycler).apply {
             layoutManager = LinearLayoutManager(context)
-            adapter = SimpleRowAdapter(items)
+            adapter = SimpleRowAdapter(
+                items,
+                onClick = TODO()
+            )
         }
     }
 }
