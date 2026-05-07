@@ -80,7 +80,10 @@ class FolderAdapter(
                 true
             }
 
-            itemView.alpha = if (name == selected) 1.0f else 0.6f
+            //선택 UI 강조
+            itemView.alpha = if (name == selected) 1.0f else 0.3f
+            itemView.scaleX = if (name == selected) 1.05f else 1.0f
+            itemView.scaleY = if (name == selected) 1.05f else 1.0f
         }
     }
 

@@ -47,18 +47,18 @@ class DetailFragment : Fragment(R.layout.fragment_detail) {
     private fun updateTabs(summaryBtn: MaterialButton, fileBtn: MaterialButton) {
 
         if (isSummaryTab) {
-            summaryBtn.setBackgroundColor(resources.getColor(R.color.moa_orange, null))
-            summaryBtn.setTextColor(resources.getColor(android.R.color.white, null))
+            fileBtn.setBackgroundColor(resources.getColor(R.color.color_on_primary, null))
+            fileBtn.setTextColor(resources.getColor(android.R.color.black, null))
 
-            fileBtn.setBackgroundColor(resources.getColor(R.color.moa_bg, null))
-            fileBtn.setTextColor(resources.getColor(R.color.moa_orange_soft, null))
+            summaryBtn.setBackgroundColor(resources.getColor(R.color.color_primary, null))
+            summaryBtn.setTextColor(resources.getColor(R.color.color_on_primary, null))
 
         } else {
-            fileBtn.setBackgroundColor(resources.getColor(R.color.moa_orange, null))
-            fileBtn.setTextColor(resources.getColor(android.R.color.white, null))
+            summaryBtn.setBackgroundColor(resources.getColor(R.color.color_on_primary, null))
+            summaryBtn.setTextColor(resources.getColor(android.R.color.black, null))
 
-            summaryBtn.setBackgroundColor(resources.getColor(R.color.moa_bg, null))
-            summaryBtn.setTextColor(resources.getColor(R.color.moa_orange_soft, null))
+            fileBtn.setBackgroundColor(resources.getColor(R.color.color_primary, null))
+            fileBtn.setTextColor(resources.getColor(R.color.color_on_primary, null))
         }
     }
 

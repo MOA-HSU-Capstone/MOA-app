@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    android:background="@color/moa_bg"
+    android:background="@color/color_background"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
@@ -20,7 +20,7 @@
             android:id="@+id/title"
             android:textSize="22sp"
             android:textStyle="bold"
-            android:textColor="@color/moa_text_primary"
+            android:textColor="@color/color_text_primary"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"/>
 
@@ -41,7 +41,7 @@
                 android:padding="0dp"
                 app:cornerRadius="0dp"
                 app:strokeWidth="1dp"
-                app:strokeColor="@color/moa_line"/>
+                app:strokeColor="@color/color_divider"/>
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/tabFiles"
@@ -52,7 +52,7 @@
                 android:padding="0dp"
                 app:cornerRadius="0dp"
                 app:strokeWidth="1dp"
-                app:strokeColor="@color/moa_line"/>
+                app:strokeColor="@color/color_divider"/>
 
         </LinearLayout>
     </LinearLayout>
