@@ -37,8 +37,18 @@ class Settings:
     db_name: str = os.getenv("DB_NAME", "")
 
     # JWT
-    jwt_secret_key: str = os.getenv("JWT_SECRET_KEY", "dev-secret-key")
-    jwt_algorithm: str = os.getenv("JWT_ALGORITHM", "HS256")
+    # .env에서 SECRET_KEY를 쓰든 JWT_SECRET_KEY를 쓰든 둘 다 인식되게 처리
+    jwt_secret_key: str = os.getenv(
+        "JWT_SECRET_KEY",
+        os.getenv("SECRET_KEY", "dev-secret-key"),
+    )
+
+    # .env에서 ALGORITHM을 쓰든 JWT_ALGORITHM을 쓰든 둘 다 인식되게 처리
+    jwt_algorithm: str = os.getenv(
+        "JWT_ALGORITHM",
+        os.getenv("ALGORITHM", "HS256"),
+    )
+
     access_token_expire_minutes: int = int(
         os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
     )
