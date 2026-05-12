@@ -1,38 +1,37 @@
 package com.example.a20260310.ui.detail
 
 import android.app.AlertDialog
+import android.content.ContentValues
+import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore
 import android.view.LayoutInflater
 import android.view.View
+import android.webkit.MimeTypeMap
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
+import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.a20260310.R
 import com.example.a20260310.data.model.ActionItem
+import com.example.a20260310.data.model.MeetingFileRow
 import com.example.a20260310.data.model.MeetingSummary
-import com.example.a20260310.data.model.SimpleRow
 import com.example.a20260310.data.model.toDomain
 import com.example.a20260310.data.model.toDto
 import com.example.a20260310.data.remote.RetrofitClient
 import com.example.a20260310.data.remote.dto.SummaryUpdateRequestDto
-import com.example.a20260310.ui.common.SimpleRowAdapter
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.launch
-import android.content.ContentValues
-import android.os.Build
-import android.os.Environment
-import android.provider.MediaStore
-import android.webkit.MimeTypeMap
 import org.json.JSONArray
 import java.io.File
 import java.io.FileInputStream
 import java.util.Locale
-import androidx.navigation.fragment.findNavController
 
 class DetailFragment : Fragment(R.layout.fragment_detail) {
 
@@ -378,19 +377,19 @@ class DetailFragment : Fragment(R.layout.fragment_detail) {
         recycler.visibility = View.VISIBLE
 
         val files = loadFiles()
-        recycler.adapter = SimpleRowAdapter(files) { row ->
-            downloadFile(row.title)
+        recycler.adapter = MeetingFileAdapter(files) { row ->
+            downloadFile(row)
         }
     }
 
-    private fun loadFiles(): List<SimpleRow> {
+    private fun loadFiles(): List<MeetingFileRow> {
         val prefs = requireContext().getSharedPreferences("moa_prefs", 0)
         val meetingTitle = arguments?.getString("meetingTitle") ?: return emptyList()
         val key = "meeting_files_$meetingTitle"
         val json = prefs.getString(key, "[]") ?: "[]"
         val array = JSONArray(json)
 
-        val items = mutableListOf<SimpleRow>()
+        val items = mutableListOf<MeetingFileRow>()
 
         for (i in 0 until array.length()) {
             val obj = array.getJSONObject(i)
@@ -401,47 +400,46 @@ class DetailFragment : Fragment(R.layout.fragment_detail) {
             val file = File(localPath)
             if (file.exists()) {
                 val actualSize = if (storedSize > 0L) storedSize else file.length()
+                val ext = file.extension.lowercase(Locale.ROOT)
+
+                val type = when (ext) {
+                    "m4a", "mp3", "wav", "aac", "mp4" -> MeetingFileRow.Type.AUDIO
+                    "jpg", "jpeg", "png", "webp" -> MeetingFileRow.Type.IMAGE
+                    "pdf" -> MeetingFileRow.Type.PDF
+                    else -> MeetingFileRow.Type.DOCUMENT
+                }
+
+                val extLabel = if (ext.isBlank()) "FILE" else ext.uppercase(Locale.ROOT)
+
                 items.add(
-                    SimpleRow(
+                    MeetingFileRow(
                         title = displayName.ifBlank { file.name },
-                        subtitle = formatFileSize(actualSize)
+                        subtitle = "$extLabel · ${formatFileSize(actualSize)}",
+                        localPath = localPath,
+                        displayName = displayName.ifBlank { file.name },
+                        type = type
                     )
                 )
             }
         }
 
-        return items
+        return items.sortedBy { it.title.lowercase(Locale.getDefault()) }
     }
 
-    private fun downloadFile(displayName: String) {
-        val prefs = requireContext().getSharedPreferences("moa_prefs", 0)
-        val meetingTitle = arguments?.getString("meetingTitle") ?: return
-        val key = "meeting_files_$meetingTitle"
-        val json = prefs.getString(key, "[]") ?: "[]"
-        val array = JSONArray(json)
+    private fun downloadFile(item: MeetingFileRow) {
+        val file = File(item.localPath)
 
-        for (i in 0 until array.length()) {
-            val obj = array.getJSONObject(i)
-            if (obj.optString("displayName") == displayName) {
-                val localPath = obj.optString("localPath")
-                val file = File(localPath)
-
-                if (!file.exists()) {
-                    Toast.makeText(requireContext(), "파일이 존재하지 않습니다.", Toast.LENGTH_SHORT).show()
-                    return
-                }
-
-                val success = copyFileToDownloads(file)
-                if (success) {
-                    Toast.makeText(requireContext(), "다운로드 완료", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(requireContext(), "다운로드 실패", Toast.LENGTH_SHORT).show()
-                }
-                return
-            }
+        if (!file.exists()) {
+            Toast.makeText(requireContext(), "파일이 존재하지 않습니다.", Toast.LENGTH_SHORT).show()
+            return
         }
 
-        Toast.makeText(requireContext(), "파일 정보를 찾을 수 없습니다.", Toast.LENGTH_SHORT).show()
+        val success = copyFileToDownloads(file)
+        if (success) {
+            Toast.makeText(requireContext(), "다운로드 완료", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(requireContext(), "다운로드 실패", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun copyFileToDownloads(sourceFile: File): Boolean {
