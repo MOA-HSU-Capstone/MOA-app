@@ -63,8 +63,8 @@ object MinutesUiMapper {
         val note = payload.error?.trim()?.takeIf { it.isNotEmpty() } ?: "—"
         val followup = if (payload.actionItems.isNotEmpty()) {
             payload.actionItems.joinToString("\n") { item ->
-                val owner = item.owner.trim().ifBlank { "미정" }
-                val deadline = item.deadline.trim().ifBlank { "미정" }
+                val owner = item.assignee?.trim()?.ifBlank { "미정" }
+                val deadline = item.dueDate?.trim()?.ifBlank { "미정" }
                 "• ${item.task.trim()} (담당: $owner / 마감: $deadline)"
             }
         } else {

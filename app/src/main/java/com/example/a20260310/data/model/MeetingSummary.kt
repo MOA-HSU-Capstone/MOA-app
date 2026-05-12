@@ -32,8 +32,8 @@ fun LlmSummaryPayload.toDomain(): MeetingSummary =
         actionItems = actionItems.map {
             ActionItem(
                 task = it.task,
-                owner = it.owner.trim().ifBlank { null },
-                deadline = it.deadline.trim().ifBlank { null },
+                owner = it.assignee?.trim()?.ifBlank { null },
+                deadline = it.dueDate?.trim()?.ifBlank { null },
             )
         },
         error = error,
@@ -45,9 +45,16 @@ fun MeetingSummary.toDto(): LlmSummaryPayload =
         actionItems = actionItems.map {
             ActionItemPayload(
                 task = it.task,
-                owner = it.owner.orEmpty(),
-                deadline = it.deadline.orEmpty(),
+                assignee = it.owner.orEmpty(),
+                dueDate = it.deadline.orEmpty(),
             )
         },
         error = error,
+    )
+
+fun ActionItemPayload.toDomain(): ActionItem =
+    ActionItem(
+        task = task,
+        owner = assignee,
+        deadline = dueDate,
     )

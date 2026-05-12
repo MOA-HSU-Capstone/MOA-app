@@ -24,6 +24,7 @@ import com.example.a20260310.data.model.MeetingSummary
 import com.example.a20260310.data.model.toDomain
 import com.example.a20260310.data.model.toDto
 import com.example.a20260310.data.remote.RetrofitClient
+import com.example.a20260310.data.remote.dto.ActionItemPayload
 import com.example.a20260310.data.remote.dto.SummaryUpdateRequestDto
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
@@ -331,7 +332,15 @@ class DetailFragment : Fragment(R.layout.fragment_detail) {
 
     private fun patchSummary(updated: MeetingSummary) {
         val request = SummaryUpdateRequestDto(
-            summary = updated.toDto()
+            summary = updated.summary,
+            decisions = updated.decisions,
+            actionItems = updated.actionItems.map {
+                ActionItemPayload(
+                    task = it.task,
+                    assignee = it.owner,
+                    dueDate = it.deadline
+                )
+            }
         )
 
         viewLifecycleOwner.lifecycleScope.launch {

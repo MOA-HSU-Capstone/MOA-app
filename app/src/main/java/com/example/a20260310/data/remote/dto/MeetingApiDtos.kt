@@ -1,15 +1,31 @@
 package com.example.a20260310.data.remote.dto
 
+import com.example.a20260310.data.model.ActionItem
 import com.google.gson.annotations.SerializedName
 
 data class MeetingCreateRequest(
+    @SerializedName("title")
     val title: String,
+
+    @SerializedName("meeting_date")
+    val meetingDate: String? = null,
+
+    @SerializedName("meeting_time")
+    val meetingTime: String? = null,
+
+    @SerializedName("attendees")
+    val attendees: List<String>? = null,
+
+    @SerializedName("description")
     val description: String? = null,
 )
 
 data class MeetingResponseDto(
     @SerializedName("id") val id: Int,
     @SerializedName("title") val title: String,
+    @SerializedName("meeting_date") val meetingDate: String? = null,
+    @SerializedName("meeting_time") val meetingTime: String? = null,
+    @SerializedName("attendees") val attendees: List<String> = emptyList(),
     @SerializedName("description") val description: String? = null,
     @SerializedName("created_at") val createdAt: String? = null,
     @SerializedName("updated_at") val updatedAt: String? = null,
@@ -33,8 +49,8 @@ data class ImageUploadResponseDto(
 
 data class ActionItemPayload(
     @SerializedName("task") val task: String = "",
-    @SerializedName("owner") val owner: String = "",
-    @SerializedName("deadline") val deadline: String = "",
+    @SerializedName("assignee") val assignee: String? = null,
+    @SerializedName("due_date") val dueDate: String? = null,
 )
 
 data class LlmSummaryPayload(
@@ -45,7 +61,6 @@ data class LlmSummaryPayload(
 )
 
 data class SummaryGenerateResponseDto(
-
     @SerializedName("id")
     val id: Int,
 
@@ -63,7 +78,19 @@ data class SummaryGenerateResponseDto(
 )
 
 data class SummaryUpdateRequestDto(
-
     @SerializedName("summary")
-    val summary: LlmSummaryPayload
+    val summary: String,
+
+    @SerializedName("decisions")
+    val decisions: List<String> = emptyList(),
+
+    @SerializedName("action_items")
+    val actionItems: List<ActionItemPayload> = emptyList(),
 )
+
+fun ActionItemPayload.toDomain(): ActionItem =
+    ActionItem(
+        task = task,
+        owner = assignee,
+        deadline = dueDate,
+    )
