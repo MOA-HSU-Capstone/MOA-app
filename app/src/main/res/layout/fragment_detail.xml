@@ -6,19 +6,149 @@
     android:orientation="vertical"
     android:background="@color/color_background">
 
-    <!-- 상단 타이틀 -->
-    <TextView
-        android:id="@+id/title"
+    <!-- 상단 고정 회의 상세 카드 -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardMeetingInfo"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingStart="20dp"
-        android:paddingTop="20dp"
-        android:paddingEnd="20dp"
-        android:paddingBottom="12dp"
-        android:text="회의"
-        android:textColor="@color/color_text_primary"
-        android:textSize="24sp"
-        android:textStyle="bold" />
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="20dp"
+        android:layout_marginEnd="20dp"
+        android:layout_marginBottom="16dp"
+        app:cardBackgroundColor="@color/color_surface"
+        app:cardCornerRadius="28dp"
+        app:cardElevation="0dp"
+        app:strokeColor="@color/color_text_primary"
+        app:strokeWidth="1dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="20dp">
+
+            <!-- 제목 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="56dp"
+                    android:layout_height="wrap_content"
+                    android:text="제목"
+                    android:textColor="@color/color_text_secondary"
+                    android:textSize="18sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="|"
+                    android:textColor="@color/color_text_secondary"
+                    android:textSize="22sp" />
+
+                <TextView
+                    android:id="@+id/title"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:layout_weight="1"
+                    android:text="(회의명)"
+                    android:textColor="@color/color_text_primary"
+                    android:textSize="22sp"
+                    android:textStyle="bold" />
+
+                <ImageButton
+                    android:id="@+id/btnEditMeetingInfo"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="회의 정보 수정"
+                    android:padding="6dp"
+                    android:src="@drawable/ic_pencil"
+                    app:tint="@color/color_text_primary" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="16dp"
+                android:background="@color/color_text_primary" />
+
+            <!-- 날짜 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="56dp"
+                    android:layout_height="wrap_content"
+                    android:text="날짜"
+                    android:textColor="@color/color_text_secondary"
+                    android:textSize="18sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="|"
+                    android:textColor="@color/color_text_secondary"
+                    android:textSize="22sp" />
+
+                <TextView
+                    android:id="@+id/meetingDate"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:layout_weight="1"
+                    android:text="yyyy.mm.dd"
+                    android:textColor="@color/color_text_primary"
+                    android:textSize="18sp" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginTop="16dp"
+                android:layout_marginBottom="16dp"
+                android:background="@color/color_text_primary" />
+
+            <!-- 시간 -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="56dp"
+                    android:layout_height="wrap_content"
+                    android:text="시간"
+                    android:textColor="@color/color_text_secondary"
+                    android:textSize="18sp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="|"
+                    android:textColor="@color/color_text_secondary"
+                    android:textSize="22sp" />
+
+                <TextView
+                    android:id="@+id/meetingTime"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="16dp"
+                    android:layout_weight="1"
+                    android:text="오후 12:30"
+                    android:textColor="@color/color_text_primary"
+                    android:textSize="18sp" />
+            </LinearLayout>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
 
     <!-- 탭 -->
     <LinearLayout
@@ -56,7 +186,7 @@
             app:cornerRadius="12dp" />
     </LinearLayout>
 
-    <!-- 요약 스크롤 -->
+    <!-- 요약 -->
     <ScrollView
         android:id="@+id/summaryScroll"
         android:layout_width="match_parent"
@@ -74,7 +204,6 @@
             android:paddingEnd="20dp"
             android:paddingBottom="24dp">
 
-            <!-- 회의 요약 카드 -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardSummary"
                 android:layout_width="match_parent"
@@ -123,14 +252,12 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="16dp"
-                        android:lineSpacingExtra="4dp"
                         android:text="—"
                         android:textColor="@color/color_text_primary"
                         android:textSize="15sp" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- 결정 사항 카드 -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardDecisions"
                 android:layout_width="match_parent"
@@ -156,7 +283,6 @@
                         android:textSize="18sp"
                         android:textStyle="bold" />
 
-                    <!-- 결정 1 -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -169,7 +295,6 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:lineSpacingExtra="2dp"
                             android:text="—"
                             android:textColor="@color/color_text_primary"
                             android:textSize="15sp" />
@@ -192,7 +317,6 @@
                         android:layout_marginBottom="12dp"
                         android:background="@color/color_divider" />
 
-                    <!-- 결정 2 -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -204,7 +328,6 @@
                             android:layout_width="0dp"
                             android:layout_height="wrap_content"
                             android:layout_weight="1"
-                            android:lineSpacingExtra="2dp"
                             android:text="—"
                             android:textColor="@color/color_text_primary"
                             android:textSize="15sp" />
@@ -222,7 +345,6 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- 할 일 카드 -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardActions"
                 android:layout_width="match_parent"
@@ -247,7 +369,6 @@
                         android:textSize="18sp"
                         android:textStyle="bold" />
 
-                    <!-- 할 일 1 -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -307,7 +428,6 @@
                         android:layout_marginBottom="12dp"
                         android:background="@color/color_divider" />
 
-                    <!-- 할 일 2 -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -359,7 +479,13 @@
                             android:textSize="14sp" />
                     </LinearLayout>
 
-                    <!-- 할 일 3 -->
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="12dp"
+                        android:layout_marginBottom="12dp"
+                        android:background="@color/color_divider" />
+
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -410,19 +536,12 @@
                             android:textColor="@color/color_text_secondary"
                             android:textSize="14sp" />
                     </LinearLayout>
-
-                    <View
-                        android:layout_width="match_parent"
-                        android:layout_height="1dp"
-                        android:layout_marginTop="12dp"
-                        android:layout_marginBottom="12dp"
-                        android:background="@color/color_divider" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
         </LinearLayout>
     </ScrollView>
 
-    <!-- 파일 탭 -->
+    <!-- 파일 리스트 -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/fileRecycler"
         android:layout_width="match_parent"

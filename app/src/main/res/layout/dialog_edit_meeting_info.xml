@@ -3,25 +3,44 @@
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical"
-    android:padding="20dp">
+    android:paddingTop="8dp">
 
-    <com.google.android.material.textfield.TextInputEditText
-        android:id="@+id/etMeetingTitle"
+    <com.google.android.material.textfield.TextInputLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:hint="회의명" />
+        android:hint="회의명">
 
-    <com.google.android.material.textfield.TextInputEditText
-        android:id="@+id/etMeetingDate"
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/inputMeetingTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="1" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
-        android:hint="날짜 yyyy.MM.dd" />
+        android:hint="날짜 (예: 2025.05.12)">
 
-    <com.google.android.material.textfield.TextInputEditText
-        android:id="@+id/etMeetingTime"
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/inputMeetingDate"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="1" />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
-        android:hint="시간 오후 12:30" />
+        android:hint="시간 (예: 오후 12:30)">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/inputMeetingTime"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:maxLines="1" />
+    </com.google.android.material.textfield.TextInputLayout>
+
 </LinearLayout>

@@ -23,6 +23,15 @@ import com.example.a20260310.ui.common.SimpleRowAdapter
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.launch
+import android.content.ContentValues
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import android.webkit.MimeTypeMap
+import org.json.JSONArray
+import java.io.File
+import java.io.FileInputStream
+import java.util.Locale
 
 class DetailFragment : Fragment(R.layout.fragment_detail) {
 
@@ -340,12 +349,153 @@ class DetailFragment : Fragment(R.layout.fragment_detail) {
         recycler.visibility = View.VISIBLE
 
         val files = loadFiles()
-        recycler.adapter = SimpleRowAdapter(files) {
-            Toast.makeText(requireContext(), it.title, Toast.LENGTH_SHORT).show()
+        recycler.adapter = SimpleRowAdapter(files) { row ->
+            downloadFile(row.title)
         }
     }
 
     private fun loadFiles(): List<SimpleRow> {
-        return emptyList()
+        val prefs = requireContext().getSharedPreferences("moa_prefs", 0)
+        val meetingTitle = arguments?.getString("meetingTitle") ?: return emptyList()
+        val key = "meeting_files_$meetingTitle"
+        val json = prefs.getString(key, "[]") ?: "[]"
+        val array = JSONArray(json)
+
+        val items = mutableListOf<SimpleRow>()
+
+        for (i in 0 until array.length()) {
+            val obj = array.getJSONObject(i)
+            val displayName = obj.optString("displayName")
+            val localPath = obj.optString("localPath")
+            val storedSize = obj.optLong("size", 0L)
+
+            val file = File(localPath)
+            if (file.exists()) {
+                val actualSize = if (storedSize > 0L) storedSize else file.length()
+                items.add(
+                    SimpleRow(
+                        title = displayName.ifBlank { file.name },
+                        subtitle = formatFileSize(actualSize)
+                    )
+                )
+            }
+        }
+
+        return items
+    }
+
+    private fun downloadFile(displayName: String) {
+        val prefs = requireContext().getSharedPreferences("moa_prefs", 0)
+        val meetingTitle = arguments?.getString("meetingTitle") ?: return
+        val key = "meeting_files_$meetingTitle"
+        val json = prefs.getString(key, "[]") ?: "[]"
+        val array = JSONArray(json)
+
+        for (i in 0 until array.length()) {
+            val obj = array.getJSONObject(i)
+            if (obj.optString("displayName") == displayName) {
+                val localPath = obj.optString("localPath")
+                val file = File(localPath)
+
+                if (!file.exists()) {
+                    Toast.makeText(requireContext(), "파일이 존재하지 않습니다.", Toast.LENGTH_SHORT).show()
+                    return
+                }
+
+                val success = copyFileToDownloads(file)
+                if (success) {
+                    Toast.makeText(requireContext(), "다운로드 완료", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(requireContext(), "다운로드 실패", Toast.LENGTH_SHORT).show()
+                }
+                return
+            }
+        }
+
+        Toast.makeText(requireContext(), "파일 정보를 찾을 수 없습니다.", Toast.LENGTH_SHORT).show()
+    }
+
+    private fun copyFileToDownloads(sourceFile: File): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            copyFileToDownloadsApi29Plus(sourceFile)
+        } else {
+            copyFileToDownloadsLegacy(sourceFile)
+        }
+    }
+
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.Q)
+    private fun copyFileToDownloadsApi29Plus(sourceFile: File): Boolean {
+        val resolver = requireContext().contentResolver
+        val mimeType = getMimeType(sourceFile)
+
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, sourceFile.name)
+            put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+            put(
+                MediaStore.MediaColumns.RELATIVE_PATH,
+                Environment.DIRECTORY_DOWNLOADS + "/MOA"
+            )
+        }
+
+        val itemUri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: return false
+
+        return runCatching {
+            FileInputStream(sourceFile).use { input ->
+                resolver.openOutputStream(itemUri)?.use { output ->
+                    input.copyTo(output)
+                } ?: throw IllegalStateException("출력 스트림을 열 수 없습니다.")
+            }
+            true
+        }.getOrElse {
+            resolver.delete(itemUri, null, null)
+            false
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun copyFileToDownloadsLegacy(sourceFile: File): Boolean {
+        val downloadsDir =
+            Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val moaDir = File(downloadsDir, "MOA")
+
+        if (!moaDir.exists()) {
+            moaDir.mkdirs()
+        }
+
+        val targetFile = File(moaDir, sourceFile.name)
+
+        return runCatching {
+            FileInputStream(sourceFile).use { input ->
+                targetFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+            true
+        }.getOrElse {
+            false
+        }
+    }
+
+    private fun getMimeType(file: File): String {
+        val ext = file.extension.lowercase(Locale.ROOT)
+        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext)
+            ?: when (ext) {
+                "pdf" -> "application/pdf"
+                "jpg", "jpeg" -> "image/jpeg"
+                "png" -> "image/png"
+                "webp" -> "image/webp"
+                "m4a" -> "audio/mp4"
+                "mp3" -> "audio/mpeg"
+                "wav" -> "audio/wav"
+                "aac" -> "audio/aac"
+                "mp4" -> "audio/mp4"
+                else -> "*/*"
+            }
+    }
+
+    private fun formatFileSize(size: Long): String {
+        if (size < 1024) return "${size} B"
+        if (size < 1024 * 1024) return "${size / 1024} KB"
+        return String.format(Locale.getDefault(), "%.1f MB", size / 1024f / 1024f)
     }
 }
