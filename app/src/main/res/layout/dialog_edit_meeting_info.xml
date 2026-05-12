@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <com.google.android.material.textfield.TextInputEditText
+        android:id="@+id/etMeetingTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="회의명" />
+
+    <com.google.android.material.textfield.TextInputEditText
+        android:id="@+id/etMeetingDate"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="날짜 yyyy.MM.dd" />
+
+    <com.google.android.material.textfield.TextInputEditText
+        android:id="@+id/etMeetingTime"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="시간 오후 12:30" />
+</LinearLayout>
