@@ -32,18 +32,100 @@ from config.openai_client import get_openai_client
 from config.settings import settings
 
 
-def _guess_mime_type(file_path: str) -> str:
+SUPPORTED_IMAGE_MIME_TYPES = {
+    "image/jpeg",
+    "image/png",
+    "image/webp",
+    "image/gif",
+}
+
+
+def _detect_mime_type_from_file_header(file_path: str) -> str | None:
     """
-    파일 경로로부터 MIME 타입 추정
+    파일의 앞부분 바이트를 읽어서 이미지 MIME 타입을 추정한다.
+
+    이유
+    ----
+    mimetypes.guess_type()은 파일 확장자만 보고 판단한다.
+    Android 업로드 파일은 확장자가 없거나 content-type이 이상할 수 있으므로,
+    파일 내용의 시그니처도 확인한다.
+
+    Returns
+    -------
+    str | None
+        감지된 MIME 타입.
+        지원 이미지가 아니면 None.
     """
 
+    with open(file_path, "rb") as file:
+        header = file.read(16)
+
+    # JPEG: FF D8 FF
+    if header.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+
+    # PNG: 89 50 4E 47 0D 0A 1A 0A
+    if header.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+
+    # GIF: GIF87a 또는 GIF89a
+    if header.startswith(b"GIF87a") or header.startswith(b"GIF89a"):
+        return "image/gif"
+
+    # WEBP: RIFF....WEBP
+    if header.startswith(b"RIFF") and header[8:12] == b"WEBP":
+        return "image/webp"
+
+    return None
+
+
+def _guess_mime_type(file_path: str) -> str:
+    """
+    이미지 파일의 MIME 타입을 안전하게 추정한다.
+
+    우선순위
+    --------
+    1. 파일 내용의 시그니처로 MIME 타입 확인
+    2. 확장자로 MIME 타입 확인
+    3. 지원하지 않는 타입이면 에러 발생
+
+    OpenAI 이미지 입력에는 image/jpeg, image/png, image/webp, image/gif 등이 필요하다.
+    """
+
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"이미지 파일을 찾을 수 없습니다: {file_path}")
+
+    # 1. 파일 내용 기준으로 먼저 확인
+    header_mime_type = _detect_mime_type_from_file_header(file_path)
+
+    if header_mime_type in SUPPORTED_IMAGE_MIME_TYPES:
+        return header_mime_type
+
+    # 2. 확장자 기준으로 확인
     mime_type, _ = mimetypes.guess_type(file_path)
-    return mime_type or "image/png"
+
+    # jpg 확장자의 경우 환경에 따라 image/jpg로 잡히는 경우가 있어 보정
+    if mime_type == "image/jpg":
+        mime_type = "image/jpeg"
+
+    if mime_type in SUPPORTED_IMAGE_MIME_TYPES:
+        return mime_type
+
+    # 3. 여기까지 오면 OpenAI가 받을 수 없는 이미지 형식
+    raise ValueError(
+        "지원하지 않는 이미지 MIME 타입입니다. "
+        f"file_path={file_path}, guessed_mime_type={mime_type}. "
+        "jpg/jpeg, png, webp, gif 형식의 이미지를 업로드하세요."
+    )
 
 
 def _encode_image_to_data_url(file_path: str) -> str:
     """
-    이미지 파일을 data URL(base64) 형태로 변환
+    이미지 파일을 data URL(base64) 형태로 변환한다.
+
+    예
+    --
+    data:image/jpeg;base64,....
     """
 
     if not os.path.exists(file_path):
@@ -59,24 +141,44 @@ def _encode_image_to_data_url(file_path: str) -> str:
 
 def _extract_json_from_response(content: str) -> dict:
     """
-    모델 응답에서 JSON 파싱 시도
+    모델 응답에서 JSON 파싱 시도.
 
     모델이 순수 JSON으로 응답하면 그대로 파싱하고,
-    파싱이 실패하면 전체 텍스트를 analysis_text로 반환
+    파싱이 실패하면 전체 텍스트를 analysis_text로 반환한다.
     """
+
+    content = (content or "").strip()
+
+    if not content:
+        return {
+            "ocr_text": "",
+            "analysis_text": "",
+        }
 
     try:
         return json.loads(content)
+
     except json.JSONDecodeError:
+        # 혹시 모델이 ```json ... ``` 형태로 반환한 경우를 대비해서
+        # 가장 바깥의 { ... } 부분만 추출해본다.
+        start = content.find("{")
+        end = content.rfind("}")
+
+        if start != -1 and end != -1 and end > start:
+            try:
+                return json.loads(content[start:end + 1])
+            except json.JSONDecodeError:
+                pass
+
         return {
             "ocr_text": "",
-            "analysis_text": content.strip(),
+            "analysis_text": content,
         }
 
 
 def process_image_by_type(image_path: str, image_type: str = "image") -> dict:
     """
-    이미지 종류에 따라 OCR / 화이트보드 분석 수행
+    이미지 종류에 따라 OCR / 화이트보드 분석 수행.
 
     Parameters
     ----------
@@ -136,28 +238,33 @@ def process_image_by_type(image_path: str, image_type: str = "image") -> dict:
 - 응답은 JSON만 반환
 """.strip()
 
-    response = client.chat.completions.create(
-        model=settings.openai_model,
-        messages=[
-            {
-                "role": "system",
-                "content": "당신은 OCR 및 이미지 분석 도우미입니다. 반드시 JSON 형식으로만 응답하세요.",
-            },
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": user_instruction},
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": image_data_url},
-                    },
-                ],
-            },
-        ],
-        temperature=0.2,
-    )
+    try:
+        response = client.chat.completions.create(
+            model=settings.openai_model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "당신은 OCR 및 이미지 분석 도우미입니다. 반드시 JSON 형식으로만 응답하세요.",
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": user_instruction},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": image_data_url},
+                        },
+                    ],
+                },
+            ],
+            temperature=0.2,
+        )
+
+    except Exception as e:
+        raise RuntimeError(f"이미지 OCR/분석 중 OpenAI API 오류가 발생했습니다: {e}") from e
 
     content = response.choices[0].message.content
+
     if content is None:
         raise RuntimeError("이미지 OCR/분석 응답이 비어 있습니다.")
 
@@ -167,4 +274,3 @@ def process_image_by_type(image_path: str, image_type: str = "image") -> dict:
         "ocr_text": (parsed.get("ocr_text") or "").strip(),
         "analysis_text": (parsed.get("analysis_text") or "").strip(),
     }
-

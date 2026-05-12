@@ -56,3 +56,6 @@ build/
 # DB files
 *.db
 local_dev.db
+
+backend/app/server.log
+backend/app/uploads/
