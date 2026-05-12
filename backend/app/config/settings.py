@@ -67,6 +67,26 @@ class Settings:
     audio_dir: str = "audio"
     image_dir: str = "images"
 
+    # -------------------------
+    # JWT 인증 설정
+    # -------------------------
+    # SECRET_KEY
+    # - JWT 토큰 서명에 사용되는 비밀키
+    # - 실제 배포 환경에서는 반드시 긴 랜덤 문자열로 설정해야 한다.
+    #
+    # ALGORITHM
+    # - JWT 암호화 알고리즘
+    # - 일반적으로 HS256 사용
+    #
+    # ACCESS_TOKEN_EXPIRE_MINUTES
+    # - access token 만료 시간
+    # - 1440분 = 24시간
+    # - 10080분 = 7일
+    # - 43200분 = 30일
+    secret_key: str = "change-this-secret-key"
+    algorithm: str = "HS256"
+    access_token_expire_minutes: int = 1440
+
 
 def get_env(
     key: str,
@@ -135,6 +155,14 @@ def load_settings() -> Settings:
         upload_dir=get_env("UPLOAD_DIR", "uploads") or "uploads",
         audio_dir=get_env("AUDIO_DIR", "audio") or "audio",
         image_dir=get_env("IMAGE_DIR", "images") or "images",
+
+        # JWT 인증
+        secret_key=get_env("SECRET_KEY", "change-this-secret-key")
+        or "change-this-secret-key",
+        algorithm=get_env("ALGORITHM", "HS256") or "HS256",
+        access_token_expire_minutes=int(
+            get_env("ACCESS_TOKEN_EXPIRE_MINUTES", "1440") or "1440"
+        ),
     )
 
 

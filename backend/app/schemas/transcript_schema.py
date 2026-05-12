@@ -31,7 +31,7 @@ class TranscriptCreate(BaseModel):
     meeting_id: int = Field(..., gt=0, description="회의 ID")
     content: str = Field(..., min_length=1, description="STT 결과 텍스트")
 
-
+ 
 class TranscriptResponse(BaseModel):
     """
     transcript 응답 스키마

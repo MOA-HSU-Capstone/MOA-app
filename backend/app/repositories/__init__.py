@@ -8,6 +8,7 @@ repositories 패키지
 주의
 - 실제 DB 연결은 config.database에서 처리
 - 이 계층은 ORM 접근 로직만 담당
+- 로그인 기능이 있으므로 사용자별 조회 함수 사용을 권장
 """
 
 from .image_repository import (
@@ -15,28 +16,43 @@ from .image_repository import (
     delete_image,
     get_images_by_meeting_id,
 )
+
 from .meeting_repository import (
     create_meeting,
     delete_meeting,
     get_all_meetings,
     get_meeting_by_id,
+    get_meeting_by_id_and_user_id,
+    get_meetings_by_user_id,
     update_meeting,
 )
+
 from .summary_repository import (
     create_summary,
     delete_summary,
     get_summary_by_meeting_id,
+    update_summary,
+    upsert_summary,
 )
+
 from .transcript_repository import (
     create_transcript,
     delete_transcript,
     get_transcripts_by_meeting_id,
 )
 
+from .user_repository import (
+    create_user,
+    get_user_by_username,
+)
+
+
 __all__ = [
     # meeting
     "create_meeting",
     "get_meeting_by_id",
+    "get_meeting_by_id_and_user_id",
+    "get_meetings_by_user_id",
     "get_all_meetings",
     "update_meeting",
     "delete_meeting",
@@ -49,10 +65,16 @@ __all__ = [
     # summary
     "create_summary",
     "get_summary_by_meeting_id",
+    "update_summary",
+    "upsert_summary",
     "delete_summary",
 
     # image
     "create_image",
     "get_images_by_meeting_id",
     "delete_image",
+
+    # user
+    "create_user",
+    "get_user_by_username",
 ]
