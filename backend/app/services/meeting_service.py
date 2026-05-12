@@ -5,10 +5,10 @@ meeting_service.py
 
 역할
 - 회의 생성
-- 회의 목록 조회
-- 회의 단건 조회
-- 회의 수정
-- 회의 삭제
+- 로그인 사용자 기준 회의 목록 조회
+- 로그인 사용자 기준 회의 단건 조회
+- 로그인 사용자 기준 회의 수정
+- 로그인 사용자 기준 회의 삭제
 - STT JSON + OCR JSON 기반 summary 생성
 - 회의의 summary 조회
 - 회의의 전체 transcript(전문) 조회
@@ -29,12 +29,13 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from ai.meeting_summarizer import summarize_meeting_from_payload
+from models.user_model import User
 from repositories.image_repository import get_images_by_meeting_id
 from repositories.meeting_repository import (
     create_meeting,
     delete_meeting,
-    get_all_meetings,
-    get_meeting_by_id,
+    get_meeting_by_id_and_user_id,
+    get_meetings_by_user_id,
     update_meeting,
 )
 from repositories.summary_repository import (
@@ -55,62 +56,187 @@ from schemas.summary_schema import (
 )
 
 
-def create_new_meeting(db: Session, meeting_data: MeetingCreate) -> MeetingResponse:
+# -----------------------------------------
+# 참석자 변환 유틸
+# -----------------------------------------
+
+def attendees_list_to_text(attendees: list[str] | None) -> str | None:
+    """
+    API 요청에서 받은 참석자 list를 DB 저장용 문자열로 변환
+
+    예시
+    ----
+    ["홍길동", "김철수"] -> "홍길동,김철수"
+    """
+
+    if not attendees:
+        return None
+
+    cleaned_attendees = [
+        attendee.strip()
+        for attendee in attendees
+        if attendee and attendee.strip()
+    ]
+
+    if not cleaned_attendees:
+        return None
+
+    return ",".join(cleaned_attendees)
+
+
+def attendees_text_to_list(attendees_text: str | None) -> list[str]:
+    """
+    DB에 저장된 참석자 문자열을 API 응답용 list로 변환
+
+    예시
+    ----
+    "홍길동,김철수" -> ["홍길동", "김철수"]
+    """
+
+    if not attendees_text:
+        return []
+
+    return [
+        attendee.strip()
+        for attendee in attendees_text.split(",")
+        if attendee.strip()
+    ]
+
+
+def meeting_to_response(meeting) -> MeetingResponse:
+    """
+    Meeting ORM 객체를 MeetingResponse로 변환
+
+    이유
+    ----
+    DB에는 attendees가 문자열로 저장되지만,
+    API 응답에서는 list[str]로 반환해야 하기 때문이다.
+    """
+
+    return MeetingResponse(
+        id=meeting.id,
+        title=meeting.title,
+        meeting_date=getattr(meeting, "meeting_date", None),
+        meeting_time=getattr(meeting, "meeting_time", None),
+        attendees=attendees_text_to_list(getattr(meeting, "attendees", None)),
+        description=getattr(meeting, "description", None),
+        created_at=meeting.created_at,
+        updated_at=meeting.updated_at,
+    )
+
+
+# -----------------------------------------
+# 회의 기본 CRUD
+# -----------------------------------------
+
+def create_new_meeting(
+    db: Session,
+    meeting_data: MeetingCreate,
+    current_user: User,
+) -> MeetingResponse:
     """
     회의 생성 서비스
+
+    현재 로그인한 사용자의 id를 user_id로 저장한다.
     """
 
-    meeting = create_meeting(db, meeting_data)
-    return MeetingResponse.model_validate(meeting)
+    attendees_text = attendees_list_to_text(meeting_data.attendees)
+
+    meeting = create_meeting(
+        db=db,
+        meeting_data=meeting_data,
+        user_id=current_user.id,
+        attendees_text=attendees_text,
+    )
+
+    return meeting_to_response(meeting)
 
 
-def get_meeting_detail(db: Session, meeting_id: int) -> MeetingResponse | None:
+def get_meeting_detail(
+    db: Session,
+    meeting_id: int,
+    current_user: User,
+) -> MeetingResponse | None:
     """
-    회의 단건 조회 서비스
+    현재 로그인한 사용자의 회의 단건 조회 서비스
     """
 
-    meeting = get_meeting_by_id(db, meeting_id)
+    meeting = get_meeting_by_id_and_user_id(
+        db=db,
+        meeting_id=meeting_id,
+        user_id=current_user.id,
+    )
 
     if meeting is None:
         return None
 
-    return MeetingResponse.model_validate(meeting)
+    return meeting_to_response(meeting)
 
 
 def get_meeting_list(
     db: Session,
+    current_user: User,
     skip: int = 0,
     limit: int = 100,
 ) -> list[MeetingResponse]:
     """
-    회의 목록 조회 서비스
+    현재 로그인한 사용자의 회의 목록 조회 서비스
     """
 
-    meetings = get_all_meetings(db, skip=skip, limit=limit)
-    return [MeetingResponse.model_validate(meeting) for meeting in meetings]
+    meetings = get_meetings_by_user_id(
+        db=db,
+        user_id=current_user.id,
+        skip=skip,
+        limit=limit,
+    )
+
+    return [
+        meeting_to_response(meeting)
+        for meeting in meetings
+    ]
 
 
 def update_meeting_detail(
     db: Session,
     meeting_id: int,
     meeting_data: MeetingUpdate,
+    current_user: User,
 ) -> MeetingResponse | None:
     """
-    회의 수정 서비스
+    현재 로그인한 사용자의 회의 수정 서비스
     """
 
-    meeting = get_meeting_by_id(db, meeting_id)
+    meeting = get_meeting_by_id_and_user_id(
+        db=db,
+        meeting_id=meeting_id,
+        user_id=current_user.id,
+    )
 
     if meeting is None:
         return None
 
-    updated_meeting = update_meeting(db, meeting, meeting_data)
-    return MeetingResponse.model_validate(updated_meeting)
+    attendees_text = None
+
+    if meeting_data.attendees is not None:
+        attendees_text = attendees_list_to_text(meeting_data.attendees)
+
+    updated_meeting = update_meeting(
+        db=db,
+        meeting=meeting,
+        meeting_data=meeting_data,
+        attendees_text=attendees_text,
+    )
+
+    return meeting_to_response(updated_meeting)
 
 
-def remove_meeting(db: Session, meeting_id: int) -> bool:
+def remove_meeting(
+    db: Session,
+    meeting_id: int,
+    current_user: User,
+) -> bool:
     """
-    회의 삭제 서비스
+    현재 로그인한 사용자의 회의 삭제 서비스
 
     Returns
     -------
@@ -118,7 +244,11 @@ def remove_meeting(db: Session, meeting_id: int) -> bool:
         삭제 성공 여부
     """
 
-    meeting = get_meeting_by_id(db, meeting_id)
+    meeting = get_meeting_by_id_and_user_id(
+        db=db,
+        meeting_id=meeting_id,
+        user_id=current_user.id,
+    )
 
     if meeting is None:
         return False
@@ -130,13 +260,14 @@ def remove_meeting(db: Session, meeting_id: int) -> bool:
 def get_full_transcript_for_meeting(
     db: Session,
     meeting_id: int,
+    current_user: User,
 ) -> str | None:
     """
     특정 회의의 전체 transcript(전문)를 하나의 문자열로 반환
 
     동작 방식
     --------
-    1. 회의 존재 여부 확인
+    1. 현재 로그인한 사용자의 회의인지 확인
     2. 해당 회의의 transcript 전체 조회
     3. 시간 순서대로 transcript 내용을 이어 붙여 하나의 문자열 생성
 
@@ -147,18 +278,20 @@ def get_full_transcript_for_meeting(
         transcript가 없으면 빈 문자열("")
     """
 
-    # 1. 회의 존재 확인
-    meeting = get_meeting_by_id(db, meeting_id)
+    meeting = get_meeting_by_id_and_user_id(
+        db=db,
+        meeting_id=meeting_id,
+        user_id=current_user.id,
+    )
+
     if meeting is None:
         return None
 
-    # 2. transcript 전체 조회
     transcripts = get_transcripts_by_meeting_id(db, meeting_id)
 
     if not transcripts:
         return ""
 
-    # 3. 저장된 transcript를 시간 순서대로 이어 붙임
     full_text = "\n".join(
         transcript.content
         for transcript in reversed(transcripts)
@@ -168,28 +301,20 @@ def get_full_transcript_for_meeting(
     return full_text
 
 
+# -----------------------------------------
+# Summary 생성용 payload 변환
+# -----------------------------------------
+
 def _build_stt_payload(transcripts: list[Any]) -> list[dict[str, Any]]:
     """
     transcript ORM 목록을 LLM 입력용 STT JSON 배열로 변환
-
-    Returns
-    -------
-    list[dict[str, Any]]
-        예시:
-        [
-            {
-                "id": 1,
-                "meeting_id": 1,
-                "content": "...",
-                "created_at": "2026-04-01T10:00:00"
-            }
-        ]
     """
 
     stt_items: list[dict[str, Any]] = []
 
     for transcript in reversed(transcripts):
         content = (transcript.content or "").strip()
+
         if not content:
             continue
 
@@ -212,28 +337,6 @@ def _build_stt_payload(transcripts: list[Any]) -> list[dict[str, Any]]:
 def _build_ocr_payload(images: list[Any]) -> list[dict[str, Any]]:
     """
     image ORM 목록을 LLM 입력용 OCR JSON 배열로 변환
-
-    주의
-    ----
-    - image_type(image / whiteboard 등)를 함께 전달
-    - OCR 텍스트가 없더라도 analysis_text가 있으면 summary 생성에 활용 가능
-    - 둘 다 비어 있으면 제외
-
-    Returns
-    -------
-    list[dict[str, Any]]
-        예시:
-        [
-            {
-                "id": 10,
-                "meeting_id": 1,
-                "file_path": "uploads/images/xxx.png",
-                "image_type": "image",
-                "ocr_text": "...",
-                "analysis_text": "...",
-                "created_at": "2026-04-01T10:05:00"
-            }
-        ]
     """
 
     ocr_items: list[dict[str, Any]] = []
@@ -242,7 +345,6 @@ def _build_ocr_payload(images: list[Any]) -> list[dict[str, Any]]:
         ocr_text = (getattr(image, "ocr_text", "") or "").strip()
         analysis_text = (getattr(image, "analysis_text", "") or "").strip()
 
-        # OCR / 분석 결과가 모두 없는 이미지는 summary 입력에서 제외
         if not ocr_text and not analysis_text:
             continue
 
@@ -265,88 +367,70 @@ def _build_ocr_payload(images: list[Any]) -> list[dict[str, Any]]:
     return ocr_items
 
 
+# -----------------------------------------
+# Summary
+# -----------------------------------------
+
 def create_summary_for_meeting(
     db: Session,
     meeting_id: int,
+    current_user: User,
 ) -> SummaryGenerateResponse | None:
     """
     특정 회의의 STT JSON + OCR JSON을 기반으로 summary를 생성하고 저장
-
-    동작 방식
-    --------
-    1. 회의 존재 확인
-    2. 해당 회의의 transcript 전체 조회
-    3. 해당 회의의 image 전체 조회
-    4. transcript를 STT JSON 배열로 변환
-    5. image를 OCR JSON 배열로 변환
-    6. 둘 다 비어 있으면 summary 생성 중단
-    7. 기존 summary가 있으면 삭제
-    8. 구조화된 summary(dict) 생성
-    9. DB 저장용 JSON 문자열로 변환 후 저장
-    10. API 응답은 dict 그대로 반환
-
-    Returns
-    -------
-    SummaryGenerateResponse | None
-        회의가 없거나 summary 생성에 사용할 STT/OCR 데이터가 없으면 None
     """
 
-    # 1. 회의 존재 확인
-    meeting = get_meeting_by_id(db, meeting_id)
+    meeting = get_meeting_by_id_and_user_id(
+        db=db,
+        meeting_id=meeting_id,
+        user_id=current_user.id,
+    )
+
     if meeting is None:
         return None
 
-    # 2. transcript 전체 조회
     transcripts = get_transcripts_by_meeting_id(db, meeting_id)
-
-    # 3. image 전체 조회
     images = get_images_by_meeting_id(db, meeting_id)
 
-    # 4. transcript -> STT JSON 배열
     stt_items = _build_stt_payload(transcripts)
-
-    # 5. image -> OCR JSON 배열
     ocr_items = _build_ocr_payload(images)
 
-    # 6. summary 입력 데이터가 하나도 없으면 생성 불가
     if not stt_items and not ocr_items:
         return None
 
-    # 7. LLM에 전달할 통합 payload 생성
     llm_payload = {
         "meeting": {
             "meeting_id": meeting.id,
             "title": meeting.title,
+            "meeting_date": getattr(meeting, "meeting_date", None),
+            "meeting_time": getattr(meeting, "meeting_time", None),
+            "attendees": attendees_text_to_list(getattr(meeting, "attendees", None)),
             "description": getattr(meeting, "description", None),
         },
         "stt": stt_items,
         "ocr": ocr_items,
     }
 
-    # 8. 기존 summary가 있으면 삭제
     existing_summary = get_summary_by_meeting_id(db, meeting_id)
+
     if existing_summary is not None:
         delete_summary(db, existing_summary)
 
-    # 9. 구조화된 JSON summary 생성
     summary_result = summarize_meeting_from_payload(llm_payload)
 
-    # 최소 필드 보정
     summary_result.setdefault("summary", "")
     summary_result.setdefault("decisions", [])
     summary_result.setdefault("action_items", [])
 
-    # 10. DB 저장용 문자열(JSON) 변환
     summary_content = json.dumps(summary_result, ensure_ascii=False)
 
-    # 11. 새 summary 저장
     summary_data = SummaryCreate(
         meeting_id=meeting_id,
         content=summary_content,
     )
+
     create_summary(db, summary_data)
 
-    # 12. 응답은 dict 그대로 반환
     return SummaryGenerateResponse(
         meeting_id=meeting_id,
         summary=summary_result,
@@ -356,16 +440,20 @@ def create_summary_for_meeting(
 def get_summary_for_meeting(
     db: Session,
     meeting_id: int,
+    current_user: User,
 ) -> SummaryDetailResponse | None:
     """
     특정 회의의 summary 조회 서비스
-
-    동작 방식
-    --------
-    1. meeting_id로 summary 조회
-    2. DB에 저장된 JSON 문자열(content)을 dict로 파싱
-    3. 프론트엔드가 사용하기 쉬운 구조로 반환
     """
+
+    meeting = get_meeting_by_id_and_user_id(
+        db=db,
+        meeting_id=meeting_id,
+        user_id=current_user.id,
+    )
+
+    if meeting is None:
+        return None
 
     summary = get_summary_by_meeting_id(db, meeting_id)
 
@@ -375,7 +463,6 @@ def get_summary_for_meeting(
     try:
         parsed_summary = json.loads(summary.content)
     except json.JSONDecodeError:
-        # 예외 상황에서는 최소 구조로 보정
         parsed_summary = {
             "summary": summary.content,
             "decisions": [],
