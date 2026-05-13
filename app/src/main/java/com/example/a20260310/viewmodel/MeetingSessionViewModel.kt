@@ -3,6 +3,7 @@ package com.example.a20260310.viewmodel
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
+import android.media.MediaMetadataRetriever
 import android.os.SystemClock
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -423,22 +424,57 @@ class MeetingSessionViewModel(
     }
 
     private fun estimateDurationMs(files: List<SelectedSourceFile>): Long {
-        var bytes = 0L
+        var totalAudioDurationMs = 0L
+        var nonAudioCount = 0
         for (f in files) {
-            val paths =
-                when (f.type) {
-                    SelectedSourceFile.Type.AUDIO_RECORD ->
-                        f.segmentLocalPaths.takeIf { it.isNotEmpty() } ?: listOf(f.localPath)
-                    else -> listOf(f.localPath)
+            when (f.type) {
+                SelectedSourceFile.Type.AUDIO_RECORD,
+                SelectedSourceFile.Type.AUDIO_UPLOAD -> {
+                    val paths =
+                        if (f.type == SelectedSourceFile.Type.AUDIO_RECORD) {
+                            f.segmentLocalPaths.takeIf { it.isNotEmpty() } ?: listOf(f.localPath)
+                        } else {
+                            listOf(f.localPath)
+                        }
+                    for (p in paths) {
+                        totalAudioDurationMs += mediaDurationMs(p)
+                    }
                 }
-            for (p in paths) {
-                val file = File(p)
-                if (file.isFile) bytes += file.length()
+                SelectedSourceFile.Type.IMAGE,
+                SelectedSourceFile.Type.DOCUMENT -> {
+                    nonAudioCount += 1
+                }
             }
         }
-        if (bytes == 0L) bytes = 256L * 1024L
-        val extraFromSize = (bytes / 12_000L) * 1000L
-        return (45_000L + extraFromSize).coerceIn(45_000L, 900_000L)
+        val audioFactor = when {
+            totalAudioDurationMs >= 3_600_000L -> 0.20 // 1시간 이상은 여유 있게 추정
+            totalAudioDurationMs >= 1_800_000L -> 0.15 // 30분 이상
+            else -> 0.10
+        }
+        val fromAudio = (totalAudioDurationMs * audioFactor).toLong() // 5분 오디오 ~= 30초
+        val fromNonAudio = nonAudioCount * 3_000L
+        val estimate = fromAudio + fromNonAudio
+        return estimate.coerceAtLeast(10_000L)
+    }
+
+    private fun mediaDurationMs(path: String): Long {
+        val file = File(path)
+        if (!file.isFile || file.length() == 0L) return 0L
+        val mmr = MediaMetadataRetriever()
+        return try {
+            mmr.setDataSource(path)
+            mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull()
+                ?.coerceAtLeast(0L) ?: 0L
+        } catch (_: Exception) {
+            // 메타데이터를 읽지 못한 경우 최소 추정치로 보정
+            15_000L
+        } finally {
+            try {
+                mmr.release()
+            } catch (_: Exception) {
+            }
+        }
     }
 
     private suspend fun performSummarizePipeline(snapshot: MeetingDraft, selected: List<SelectedSourceFile>) {
