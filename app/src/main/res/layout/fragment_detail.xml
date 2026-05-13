@@ -14,25 +14,13 @@
         android:layout_marginTop="18dp"
         android:layout_marginEnd="20dp"
         android:layout_marginBottom="14dp">
-
-        <ImageButton
-            android:id="@+id/btnDeleteMeeting"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_centerVertical="true"
-            android:padding="4dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:src="@drawable/ic_delete"
-            android:layout_alignParentEnd="true"
-            android:layout_alignParentTop="true"
-            />
     </RelativeLayout>
 
     <!-- 회의 정보 카드 -->
     <com.google.android.material.card.MaterialCardView
         android:id="@+id/cardMeetingInfo"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="125dp"
         android:layout_marginStart="20dp"
         android:layout_marginEnd="20dp"
         android:layout_marginBottom="18dp"
@@ -81,7 +69,7 @@
                     android:layout_weight="1"
                     android:text="(회의명)"
                     android:textColor="@color/color_text_primary"
-                    android:textSize="18sp"
+                    android:textSize="17sp"
                     android:textStyle="bold" />
 
                 <ImageButton
@@ -98,8 +86,8 @@
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:layout_marginTop="10dp"
-                android:layout_marginBottom="10dp"
+                android:layout_marginTop="0dp"
+                android:layout_marginBottom="0dp"
                 android:background="@color/color_text_primary" />
 
             <LinearLayout
@@ -136,8 +124,8 @@
             <View
                 android:layout_width="match_parent"
                 android:layout_height="1dp"
-                android:layout_marginTop="10dp"
-                android:layout_marginBottom="10dp"
+                android:layout_marginTop="0dp"
+                android:layout_marginBottom="0dp"
                 android:background="@color/color_text_primary" />
 
             <LinearLayout
@@ -751,6 +739,30 @@
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
+            <Button
+                android:id="@+id/btnDeleteMeeting"
+                android:layout_width="50dp"
+                android:layout_height="40dp"
+                android:layout_centerVertical="true"
+                android:text="삭제"
+                android:textSize="10sp"
+                android:padding="4dp"
+                android:src="@drawable/ic_delete"
+                android:layout_gravity="center"
+                android:backgroundTint="@color/gray_100"
+                android:textColor="@color/color_text_primary"
+                style="@style/Widget.MaterialComponents.Button"
+                android:textAllCaps="false"
+                app:backgroundTint="@color/color_primary"
+                app:cornerRadius="0dp"
+                app:strokeColor="@color/color_text_primary"
+                app:strokeWidth="1dp"
+                />
+
+                <!--
+                android:layout_alignParentEnd="true"
+                android:layout_alignParentTop="true"
+                -->
         </LinearLayout>
     </ScrollView>
 
