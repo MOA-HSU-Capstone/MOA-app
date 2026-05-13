@@ -15,6 +15,8 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.HttpException
 import java.io.File
+import com.example.a20260310.data.model.MeetingSummary
+import com.example.a20260310.data.remote.mapper.toDomain
 
 class MeetingRepository(
     private val api: MeetingApiService = ApiClient.meetingApi,
@@ -72,8 +74,8 @@ class MeetingRepository(
         return api.uploadImageFiles(meetingId, parts, imageTypeBody)
     }
 
-    suspend fun getMeetingSummary(meetingId: Int): MeetingSummaryResponseDto {
-        return api.getMeetingSummary(meetingId)
+    suspend fun getMeetingSummary(meetingId: Int): MeetingSummary {
+        return api.getMeetingSummary(meetingId).toDomain()
     }
 
     private fun audioMediaTypeForFile(fileName: String): String {

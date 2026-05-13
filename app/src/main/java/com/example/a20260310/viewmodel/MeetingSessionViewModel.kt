@@ -514,7 +514,7 @@ class MeetingSessionViewModel(
             }
             val summary =
                 withContext(Dispatchers.IO) {
-                    repository.getMeetingSummary(created.id).toDomain()
+                    repository.getMeetingSummary(created.id)
                 }
             val ui = MinutesUiMapper.build(snapshot, latestTranscriptText, summary)
             patchCurrentMeeting {
