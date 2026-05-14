@@ -556,11 +556,11 @@ class MeetingSessionViewModel(
                     tempGeneratedAudioFiles.forEach { it.delete() }
                 }
             }
-            val summary =
+            val summaryResponse =
                 withContext(Dispatchers.IO) {
                     repository.generateSummary(created.id)
                 }
-            val ui = MinutesUiMapper.build(snapshot, latestTranscriptText, summary)
+            val ui = MinutesUiMapper.build(snapshot, latestTranscriptText, summaryResponse)
             patchCurrentMeeting {
                 it.copy(
                     status = MeetingStatus.COMPLETED,

@@ -38,6 +38,9 @@ import java.util.Locale
 import java.util.*
 import org.json.JSONArray
 import org.json.JSONObject
+import com.example.a20260310.data.model.MeetingFileRow
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 
 fun getCurrentFileName(): String {
     val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
@@ -65,6 +68,7 @@ class RecordingFragment : Fragment(R.layout.fragment_recording) {
 
     private val viewModel: RecordingViewModel by viewModels()
     private val sessionViewModel: MeetingSessionViewModel by activityViewModels()
+    private val gson = Gson()
 
     private var currentFile: File? = null
     /** 다음 녹음 시작 시 새 파일을 쓸지(세그먼트 경계) */
@@ -672,31 +676,45 @@ class RecordingFragment : Fragment(R.layout.fragment_recording) {
         segmentLocalPaths: List<String>,
     ) {
         val prefs = requireContext().getSharedPreferences("moa_prefs", 0)
-        val key = "meeting_files_$meetingTitle"
-        val existing = prefs.getString(key, "[]") ?: "[]"
-        val array = JSONArray(existing)
+        val key = "${meetingTitle}_files_json"
 
-        for (i in 0 until array.length()) {
-            val obj = array.getJSONObject(i)
-            if (obj.optString("localPath") == localPath) {
-                return
+        val existing = prefs.getString(key, null)
+        val currentList = if (existing.isNullOrBlank()) {
+            emptyList()
+        } else {
+            try {
+                val type = object : TypeToken<List<MeetingFileRow>>() {}.type
+                gson.fromJson<List<MeetingFileRow>>(existing, type) ?: emptyList()
+            } catch (_: Exception) {
+                emptyList()
             }
         }
 
-        val file = File(localPath)
-        val segmentArray = JSONArray().apply {
-            segmentLocalPaths.forEach { put(it) }
-        }
+        val firstExistingFile = sequenceOf(localPath)
+            .plus(segmentLocalPaths.asSequence())
+            .map { File(it) }
+            .firstOrNull { it.exists() && it.length() > 0L }
 
-        val item = JSONObject().apply {
-            put("displayName", displayName)
-            put("localPath", localPath)
-            put("fileType", "AUDIO")
-            put("size", file.length())
-            put("segmentLocalPaths", segmentArray)
-        }
+        val subtitle = firstExistingFile?.let { "${it.length() / 1024} KB" }.orEmpty()
 
-        array.put(item)
-        prefs.edit().putString(key, array.toString()).apply()
+        val newItem = MeetingFileRow(
+            title = displayName.ifBlank {
+                firstExistingFile?.nameWithoutExtension ?: "녹음파일"
+            },
+            subtitle = subtitle,
+            localPath = localPath,
+            displayName = displayName.ifBlank {
+                firstExistingFile?.nameWithoutExtension ?: "녹음파일"
+            },
+            type = MeetingFileRow.Type.AUDIO,
+        )
+
+        val updated = currentList
+            .filterNot { it.localPath == localPath }
+            .plus(newItem)
+
+        prefs.edit()
+            .putString(key, gson.toJson(updated))
+            .apply()
     }
 }
