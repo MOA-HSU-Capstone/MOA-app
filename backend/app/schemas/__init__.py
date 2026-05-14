@@ -13,9 +13,10 @@ from .image_schema import ImageCreate, ImageResponse, ImageUploadResponse
 from .meeting_schema import MeetingCreate, MeetingResponse, MeetingUpdate
 from .summary_schema import (
     SummaryCreate,
-    SummaryDetailResponse,
-    SummaryGenerateResponse,
     SummaryResponse,
+    SummaryGenerateResponse,
+    SummaryUpdateRequest,
+    SummaryDetailResponse,
 )
 from .transcript_schema import (
     TranscriptCreate,
@@ -28,6 +29,18 @@ from .user_schema import (
     UserLogin,
     UserResponse,
 )
+from .decision_schema import (
+    DecisionCreate,
+    DecisionUpdate,
+    DecisionResponse,
+)
+
+from .action_item_schema import (
+    ActionItemCreate,
+    ActionItemUpdate,
+    ActionItemResponse,
+)
+
 
 __all__ = [
     # meeting
@@ -44,6 +57,7 @@ __all__ = [
     "SummaryCreate",
     "SummaryResponse",
     "SummaryGenerateResponse",
+    "SummaryUpdateRequest",
     "SummaryDetailResponse",
 
     # image
@@ -51,6 +65,16 @@ __all__ = [
     "ImageResponse",
     "ImageUploadResponse",
 
+    # decision_schema
+    "DecisionCreate",
+    "DecisionUpdate",
+    "DecisionResponse",
+
+    # action_item_schema
+    "ActionItemCreate",
+    "ActionItemUpdate",
+    "ActionItemResponse",
+    
     # user / auth
     "UserCreate",
     "UserLogin",

@@ -31,31 +31,19 @@ def create_meeting(
     db: Session,
     meeting_data: MeetingCreate,
     user_id: int,
+    attendees_text: str | None = None,
 ) -> Meeting:
     """
     회의 생성
-
-    Parameters
-    ----------
-    db : Session
-        SQLAlchemy DB 세션
-
-    meeting_data : MeetingCreate
-        회의 생성 요청 데이터
-
-    user_id : int
-        현재 로그인한 사용자 ID
-
-    Returns
-    -------
-    Meeting
-        생성된 Meeting ORM 객체
     """
 
     now = datetime.utcnow()
     meeting = Meeting(
         user_id=user_id,
         title=meeting_data.title,
+        meeting_date=meeting_data.meeting_date,
+        meeting_time=meeting_data.meeting_time,
+        attendees=attendees_text,
         description=meeting_data.description,
         created_at=now,
         updated_at=now,
@@ -75,11 +63,6 @@ def get_meeting_by_id(db: Session, meeting_id: int) -> Optional[Meeting]:
     주의
     ----
     이 함수는 user_id 검사를 하지 않는다.
-
-    내부 관리자용이거나,
-    service 계층에서 별도로 권한 검사를 할 때만 사용하는 것이 좋다.
-
-    일반 사용자 API에서는 get_meeting_by_id_and_user_id() 사용을 권장한다.
     """
 
     return (
@@ -96,27 +79,6 @@ def get_meeting_by_id_and_user_id(
 ) -> Optional[Meeting]:
     """
     meeting_id와 user_id로 회의 단건 조회
-
-    사용 이유
-    -------
-    로그인한 사용자가 본인 회의만 조회/수정/삭제할 수 있도록 하기 위해 사용한다.
-
-    Parameters
-    ----------
-    db : Session
-        SQLAlchemy DB 세션
-
-    meeting_id : int
-        조회할 회의 ID
-
-    user_id : int
-        현재 로그인한 사용자 ID
-
-    Returns
-    -------
-    Optional[Meeting]
-        조건에 맞는 회의가 있으면 Meeting 객체 반환
-        없으면 None 반환
     """
 
     return (
@@ -137,25 +99,6 @@ def get_meetings_by_user_id(
 ) -> list[Meeting]:
     """
     특정 사용자의 회의 목록 조회
-
-    Parameters
-    ----------
-    db : Session
-        SQLAlchemy DB 세션
-
-    user_id : int
-        현재 로그인한 사용자 ID
-
-    skip : int
-        건너뛸 개수
-
-    limit : int
-        최대 조회 개수
-
-    Returns
-    -------
-    list[Meeting]
-        해당 사용자의 회의 목록
     """
 
     return (
@@ -168,55 +111,27 @@ def get_meetings_by_user_id(
     )
 
 
-def get_all_meetings(db: Session, skip: int = 0, limit: int = 100) -> list[Meeting]:
-    """
-    전체 회의 목록 조회
-
-    주의
-    ----
-    이 함수는 모든 사용자의 회의를 조회한다.
-
-    일반 사용자 API에서는 사용하지 않는 것을 권장한다.
-    관리자 기능이나 테스트 용도로만 사용하는 것이 안전하다.
-    일반 사용자 API에서는 get_meetings_by_user_id()를 사용해야 한다.
-    """
-
-    return (
-        db.query(Meeting)
-        .order_by(Meeting.created_at.desc())
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
-
-
 def update_meeting(
     db: Session,
     meeting: Meeting,
     meeting_data: MeetingUpdate,
+    attendees_text: str | None = None,
 ) -> Meeting:
     """
     회의 수정
-
-    Parameters
-    ----------
-    db : Session
-        SQLAlchemy DB 세션
-
-    meeting : Meeting
-        수정 대상 Meeting ORM 객체
-
-    meeting_data : MeetingUpdate
-        수정할 데이터
-
-    Returns
-    -------
-    Meeting
-        수정된 Meeting ORM 객체
     """
 
     if meeting_data.title is not None:
         meeting.title = meeting_data.title
+
+    if meeting_data.meeting_date is not None:
+        meeting.meeting_date = meeting_data.meeting_date
+
+    if meeting_data.meeting_time is not None:
+        meeting.meeting_time = meeting_data.meeting_time
+
+    if meeting_data.attendees is not None:
+        meeting.attendees = attendees_text
 
     if meeting_data.description is not None:
         meeting.description = meeting_data.description
@@ -230,14 +145,6 @@ def update_meeting(
 def delete_meeting(db: Session, meeting: Meeting) -> None:
     """
     회의 삭제
-
-    Parameters
-    ----------
-    db : Session
-        SQLAlchemy DB 세션
-
-    meeting : Meeting
-        삭제할 Meeting ORM 객체
     """
 
     db.delete(meeting)

@@ -23,7 +23,13 @@ from fastapi import FastAPI
 from config.database import engine
 from config.schema_compat import ensure_schema_compatibility
 from models import Base
-from routers import auth_router, meeting_router, upload_router
+from routers import (
+    auth_router,
+    meeting_router,
+    upload_router,
+    decision_router,
+    action_item_router,
+)
 from storage.upload_paths import ensure_base_upload_dirs
 
 
@@ -117,9 +123,22 @@ app.include_router(auth_router)
 # - 회의 생성
 # - 회의 조회
 # - 요약 생성/조회
+# - 전체 transcript 조회
 app.include_router(meeting_router)
 
 # 업로드 관련 API
 # - 오디오 업로드
 # - 이미지 업로드
 app.include_router(upload_router)
+
+# 결정사항 관련 API
+# - 결정사항 하나 추가
+# - 결정사항 하나 수정
+# - 결정사항 하나 삭제
+app.include_router(decision_router)
+
+# 할 일 관련 API
+# - 할 일 하나 추가
+# - 할 일 하나 수정
+# - 할 일 하나 삭제
+app.include_router(action_item_router)

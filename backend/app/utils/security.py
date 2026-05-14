@@ -80,7 +80,9 @@ def create_access_token(
 
     # 만료 시간이 따로 전달되지 않으면 settings 값 사용
     if expires_delta is None:
-        expires_delta = timedelta(minutes=settings.access_token_expire_minutes)
+        expires_delta = timedelta(
+            minutes=settings.access_token_expire_minutes
+        )
 
     # JWT 만료 시간
     expire = datetime.now(timezone.utc) + expires_delta
@@ -89,10 +91,12 @@ def create_access_token(
     to_encode.update({"exp": expire})
 
     # JWT 생성
+    # settings.py에는 secret_key / algorithm 이 아니라
+    # jwt_secret_key / jwt_algorithm 이름으로 정의되어 있다.
     encoded_jwt = jwt.encode(
         to_encode,
-        settings.secret_key,
-        algorithm=settings.algorithm,
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
     )
 
     return encoded_jwt

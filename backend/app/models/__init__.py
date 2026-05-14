@@ -17,9 +17,14 @@ from .meeting_model import Meeting
 from .transcript_model import Transcript
 from .summary_model import Summary
 from .image_model import Image
+from .decision_model import Decision
+from .action_item_model import ActionItem
+
 
 
 __all__ = [
+    "Decision",
+    "ActionItem",
     "Base",
     "User",
     "Meeting",

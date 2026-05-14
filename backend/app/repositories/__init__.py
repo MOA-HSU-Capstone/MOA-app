@@ -20,7 +20,6 @@ from .image_repository import (
 from .meeting_repository import (
     create_meeting,
     delete_meeting,
-    get_all_meetings,
     get_meeting_by_id,
     get_meeting_by_id_and_user_id,
     get_meetings_by_user_id,
@@ -45,6 +44,23 @@ from .user_repository import (
     create_user,
     get_user_by_username,
 )
+from .decision_repository import (
+    create_decision,
+    get_decision_by_id,
+    get_decisions_by_meeting_id,
+    update_decision,
+    delete_decision,
+    delete_decisions_by_meeting_id,
+)
+
+from .action_item_repository import (
+    create_action_item,
+    get_action_item_by_id,
+    get_action_items_by_meeting_id,
+    update_action_item,
+    delete_action_item,
+    delete_action_items_by_meeting_id,
+)
 
 
 __all__ = [
@@ -53,7 +69,6 @@ __all__ = [
     "get_meeting_by_id",
     "get_meeting_by_id_and_user_id",
     "get_meetings_by_user_id",
-    "get_all_meetings",
     "update_meeting",
     "delete_meeting",
 
@@ -77,4 +92,20 @@ __all__ = [
     # user
     "create_user",
     "get_user_by_username",
+
+    # decision_repository
+    "create_decision",
+    "get_decision_by_id",
+    "get_decisions_by_meeting_id",
+    "update_decision",
+    "delete_decision",
+    "delete_decisions_by_meeting_id",
+
+    # action_item_repository
+    "create_action_item",
+    "get_action_item_by_id",
+    "get_action_items_by_meeting_id",
+    "update_action_item",
+    "delete_action_item",
+    "delete_action_items_by_meeting_id",
 ]

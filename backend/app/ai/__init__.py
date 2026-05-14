@@ -21,7 +21,11 @@ stt_client.py
 """
 
 from .image_ocr import process_image_by_type
-from .meeting_summarizer import summarize_meeting, summarize_meeting_from_text
+from .meeting_summarizer import (
+    summarize_meeting,
+    summarize_meeting_from_text,
+    summarize_meeting_from_payload,
+)
 from .stt_client import request_stt
 
 
@@ -32,6 +36,7 @@ __all__ = [
     # Meeting summary
     "summarize_meeting",
     "summarize_meeting_from_text",
+    "summarize_meeting_from_payload",
 
     # Image OCR
     "process_image_by_type",
