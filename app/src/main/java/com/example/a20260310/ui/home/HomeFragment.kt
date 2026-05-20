@@ -363,10 +363,23 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
     private fun loadList() {
         viewLifecycleOwner.lifecycleScope.launch {
+            val prefs = requireContext().getSharedPreferences("moa_prefs", Context.MODE_PRIVATE)
+
             runCatching {
                 meetingRepository.getMeetings()
             }.onSuccess { meetings ->
-                val items = meetings.map { meeting ->
+
+                val filteredMeetings = if (selectedFolder == "전체") {
+                    meetings
+                } else {
+                    meetings.filter { meeting ->
+                        val savedFolder = prefs.getString("meeting_${meeting.id}_folder", null)
+                        android.util.Log.d("HomeFragment", "meetingId=${meeting.id}, savedFolder=$savedFolder, selected=$selectedFolder")
+                        savedFolder == selectedFolder
+                    }
+                }
+
+                val items = filteredMeetings.map { meeting ->
                     SimpleRow(
                         title = meeting.title,
                         subtitle = meeting.displayMeetingSchedule().ifBlank { "일정 없음" },
@@ -397,6 +410,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
                     error.message ?: "회의 목록을 불러오지 못했습니다.",
                     Toast.LENGTH_SHORT,
                 ).show()
+
                 recycler.adapter = SimpleRowAdapter(emptyList()) {}
             }
         }
