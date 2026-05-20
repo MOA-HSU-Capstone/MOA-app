@@ -14,6 +14,7 @@ meeting_schema.py
 - 이 파일은 API 입력/출력 형식만 다룸
 - DB에는 attendees를 문자열로 저장할 수 있지만,
   API에서는 list[str] 형태로 주고받는다.
+- folder_id는 선택값이다.
 """
 
 from __future__ import annotations
@@ -34,11 +35,14 @@ class MeetingCreate(BaseModel):
 
     {
         "title": "주간 회의",
+        "folder_id": 1,
         "meeting_date": "2026.05.12",
         "meeting_time": "오후 2:00",
         "attendees": ["홍길동", "김철수"],
         "description": "DB 구조 및 API 설계 논의"
     }
+
+    folder_id가 없거나 null이면 폴더 미지정 회의로 생성된다.
     """
 
     title: str = Field(
@@ -46,6 +50,11 @@ class MeetingCreate(BaseModel):
         min_length=1,
         max_length=255,
         description="회의 제목",
+    )
+
+    folder_id: Optional[int] = Field(
+        default=None,
+        description="회의가 속한 폴더 ID. 없으면 폴더 미지정",
     )
 
     meeting_date: Optional[str] = Field(
@@ -81,10 +90,16 @@ class MeetingUpdate(BaseModel):
 
     {
         "title": "수정된 회의 제목",
+        "folder_id": 1,
         "meeting_date": "2026.05.13",
         "meeting_time": "오후 3:00",
         "attendees": ["홍길동", "김철수", "이영희"],
         "description": "수정된 회의 설명"
+    }
+
+    폴더에서 회의를 빼고 싶으면:
+    {
+        "folder_id": null
     }
     """
 
@@ -93,6 +108,11 @@ class MeetingUpdate(BaseModel):
         min_length=1,
         max_length=255,
         description="수정할 회의 제목",
+    )
+
+    folder_id: Optional[int] = Field(
+        default=None,
+        description="수정할 폴더 ID. null이면 폴더 미지정으로 변경",
     )
 
     meeting_date: Optional[str] = Field(
@@ -124,6 +144,7 @@ class MeetingResponse(BaseModel):
     --------
     {
         "id": 1,
+        "folder_id": 1,
         "title": "주간 회의",
         "meeting_date": "2026.05.12",
         "meeting_time": "오후 2:00",
@@ -137,6 +158,7 @@ class MeetingResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    folder_id: Optional[int] = None
     title: str
     meeting_date: Optional[str] = None
     meeting_time: Optional[str] = None

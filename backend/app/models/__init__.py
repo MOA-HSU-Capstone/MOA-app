@@ -19,16 +19,17 @@ from .summary_model import Summary
 from .image_model import Image
 from .decision_model import Decision
 from .action_item_model import ActionItem
-
+from .folder_model import Folder
 
 
 __all__ = [
-    "Decision",
-    "ActionItem",
     "Base",
     "User",
     "Meeting",
     "Transcript",
     "Summary",
     "Image",
+    "Decision",
+    "ActionItem",
+    "Folder",
 ]

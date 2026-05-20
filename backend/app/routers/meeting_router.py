@@ -44,7 +44,6 @@ from services.meeting_service import (
     remove_meeting,
     update_meeting_detail,
 )
-
 from services.summary_service import (
     create_summary_for_meeting,
     get_summary_for_meeting,
@@ -73,6 +72,19 @@ def create_meeting(
     """
     새로운 회의를 생성합니다.
 
+    요청 예시
+    --------
+    {
+        "title": "주간 회의",
+        "folder_id": 1,
+        "meeting_date": "2026.05.12",
+        "meeting_time": "오후 2:00",
+        "attendees": ["홍길동", "김철수"],
+        "description": "회의 설명"
+    }
+
+    folder_id가 없거나 null이면 폴더 미지정 회의로 생성됩니다.
+
     인증
     ----
     Authorization: Bearer {access_token}
@@ -95,6 +107,7 @@ def create_meeting(
     summary="회의 목록 조회",
 )
 def read_meeting_list(
+    folder_id: int | None = Query(None, description="폴더 ID. 없으면 전체 회의 조회"),
     skip: int = Query(0, ge=0, description="건너뛸 개수"),
     limit: int = Query(100, ge=1, le=1000, description="최대 조회 개수"),
     db: Session = Depends(get_db),
@@ -102,6 +115,14 @@ def read_meeting_list(
 ) -> list[MeetingResponse]:
     """
     현재 로그인한 사용자의 회의 목록을 조회합니다.
+
+    조회 방식
+    --------
+    GET /meetings
+    - 전체 회의 조회
+
+    GET /meetings?folder_id=1
+    - 특정 폴더의 회의만 조회
 
     인증
     ----
@@ -111,6 +132,7 @@ def read_meeting_list(
     return get_meeting_list(
         db=db,
         current_user=current_user,
+        folder_id=folder_id,
         skip=skip,
         limit=limit,
     )
@@ -161,7 +183,23 @@ def patch_meeting(
     current_user: User = Depends(get_current_user),
 ) -> MeetingResponse:
     """
-    현재 로그인한 사용자의 특정 회의 제목/설명을 수정합니다.
+    현재 로그인한 사용자의 특정 회의 정보를 수정합니다.
+
+    요청 예시
+    --------
+    {
+        "title": "수정된 회의 제목",
+        "folder_id": 1,
+        "meeting_date": "2026.05.13",
+        "meeting_time": "오후 3:00",
+        "attendees": ["홍길동", "김철수"],
+        "description": "수정된 회의 설명"
+    }
+
+    폴더에서 빼고 싶으면:
+    {
+        "folder_id": null
+    }
 
     인증
     ----
@@ -366,7 +404,7 @@ def read_full_transcript(
     if transcript_text is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="회의가 없거나 summary 생성에 사용할 STT/OCR 데이터가 존재하지 않습니다.",
+            detail="회의가 없거나 transcript가 존재하지 않습니다.",
         )
 
     return {

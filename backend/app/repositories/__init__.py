@@ -10,6 +10,19 @@ repositories 패키지
 - 이 계층은 ORM 접근 로직만 담당
 - 로그인 기능이 있으므로 사용자별 조회 함수 사용을 권장
 """
+from .user_repository import (
+    create_user,
+    get_user_by_username,
+)
+
+from .folder_repository import (
+    create_folder,
+    get_folders_by_user_id,
+    get_folder_by_id_and_user_id,
+    update_folder,
+    delete_folder,
+)
+
 
 from .image_repository import (
     create_image,
@@ -19,11 +32,12 @@ from .image_repository import (
 
 from .meeting_repository import (
     create_meeting,
-    delete_meeting,
     get_meeting_by_id,
     get_meeting_by_id_and_user_id,
     get_meetings_by_user_id,
+    get_meetings_by_user_id_and_folder_id,
     update_meeting,
+    delete_meeting,
 )
 
 from .summary_repository import (
@@ -40,10 +54,6 @@ from .transcript_repository import (
     get_transcripts_by_meeting_id,
 )
 
-from .user_repository import (
-    create_user,
-    get_user_by_username,
-)
 from .decision_repository import (
     create_decision,
     get_decision_by_id,
@@ -62,13 +72,24 @@ from .action_item_repository import (
     delete_action_items_by_meeting_id,
 )
 
-
 __all__ = [
+     # user
+    "create_user",
+    "get_user_by_username",
+
+    #folder
+    "create_folder",
+    "get_folders_by_user_id",
+    "get_folder_by_id_and_user_id",
+    "update_folder",
+    "delete_folder",
+
     # meeting
     "create_meeting",
     "get_meeting_by_id",
     "get_meeting_by_id_and_user_id",
     "get_meetings_by_user_id",
+    "get_meetings_by_user_id_and_folder_id",
     "update_meeting",
     "delete_meeting",
 
@@ -88,10 +109,6 @@ __all__ = [
     "create_image",
     "get_images_by_meeting_id",
     "delete_image",
-
-    # user
-    "create_user",
-    "get_user_by_username",
 
     # decision_repository
     "create_decision",

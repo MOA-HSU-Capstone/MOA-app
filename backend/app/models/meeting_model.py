@@ -6,10 +6,20 @@ meeting_model.py
 역할
 - 회의의 기본 정보를 저장
 - 어떤 사용자가 만든 회의인지 user_id로 저장
+- 어떤 폴더에 속한 회의인지 folder_id로 저장
 - 회의 날짜 / 시간 / 참석자 정보 저장
 - transcript, summary, image의 상위 엔티티 역할
-"""
 
+폴더 구조
+---------
+User
+└── Folders
+    └── Meetings
+
+주의
+- folder_id는 nullable=True
+- folder_id가 NULL이면 폴더 미지정 회의로 처리한다.
+"""
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -36,6 +46,15 @@ class Meeting(Base):
         Integer,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
+        index=True,
+    )
+
+    # 이 회의가 속한 폴더 ID
+    # NULL이면 폴더 미지정 회의
+    folder_id = Column(
+        Integer,
+        ForeignKey("folders.id", ondelete="SET NULL"),
+        nullable=True,
         index=True,
     )
 
@@ -78,6 +97,11 @@ class Meeting(Base):
         back_populates="meetings",
     )
 
+    folder = relationship(
+        "Folder",
+        back_populates="meetings",
+    )
+
     transcripts = relationship(
         "Transcript",
         back_populates="meeting",
@@ -104,5 +128,6 @@ class Meeting(Base):
         return (
             f"<Meeting id={self.id} "
             f"user_id={self.user_id} "
+            f"folder_id={self.folder_id} "
             f"title={self.title!r}>"
         )

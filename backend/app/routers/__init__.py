@@ -11,8 +11,11 @@ from .meeting_router import router as meeting_router
 from .upload_router import router as upload_router
 from .decision_router import router as decision_router
 from .action_item_router import router as action_item_router
+from .folder_router import router as folder_router
+
 
 __all__ = [
+    "folder_router",
     "auth_router",
     "meeting_router",
     "upload_router",

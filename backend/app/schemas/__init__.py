@@ -9,6 +9,17 @@ schemas 패키지 초기화 파일
 from schemas import MeetingCreate, MeetingResponse
 """
 
+from .user_schema import (
+    TokenResponse,
+    UserCreate,
+    UserLogin,
+    UserResponse,
+)
+from .folder_schema import (
+    FolderCreate,
+    FolderUpdate,
+    FolderResponse,
+)
 from .image_schema import ImageCreate, ImageResponse, ImageUploadResponse
 from .meeting_schema import MeetingCreate, MeetingResponse, MeetingUpdate
 from .summary_schema import (
@@ -23,12 +34,6 @@ from .transcript_schema import (
     TranscriptResponse,
     TranscriptSimpleResponse,
 )
-from .user_schema import (
-    TokenResponse,
-    UserCreate,
-    UserLogin,
-    UserResponse,
-)
 from .decision_schema import (
     DecisionCreate,
     DecisionUpdate,
@@ -41,8 +46,18 @@ from .action_item_schema import (
     ActionItemResponse,
 )
 
-
 __all__ = [
+    # user / auth
+    "UserCreate",
+    "UserLogin",
+    "UserResponse",
+    "TokenResponse",
+
+    # folder
+    "FolderCreate",
+    "FolderUpdate",
+    "FolderResponse",
+
     # meeting
     "MeetingCreate",
     "MeetingUpdate",
@@ -74,10 +89,4 @@ __all__ = [
     "ActionItemCreate",
     "ActionItemUpdate",
     "ActionItemResponse",
-    
-    # user / auth
-    "UserCreate",
-    "UserLogin",
-    "UserResponse",
-    "TokenResponse",
 ]

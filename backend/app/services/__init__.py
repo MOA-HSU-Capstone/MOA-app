@@ -10,6 +10,13 @@ services 패키지 초기화 파일
 from services import create_new_meeting, process_uploaded_audio, register_user
 from services import process_uploaded_audio_files_and_create_summary
 """
+from .folder_service import (
+    create_user_folder,
+    get_user_folders,
+    update_user_folder,
+    delete_user_folder,
+    get_user_folder_meetings,
+)
 
 # audio
 from .audio_service import (
@@ -69,14 +76,21 @@ from .stt_service import transcribe_audio_file
 
 
 __all__ = [
+    # auth
+    "register_user",
+    "login_user",
+
+    # folder_service
+    "create_user_folder",
+    "get_user_folders",
+    "update_user_folder",
+    "delete_user_folder",
+    "get_user_folder_meetings",
+
     # audio
     "process_uploaded_audio",
     "process_uploaded_audio_files",
     "process_uploaded_audio_files_and_create_summary",
-
-    # auth
-    "register_user",
-    "login_user",
 
     # image
     "process_uploaded_image",

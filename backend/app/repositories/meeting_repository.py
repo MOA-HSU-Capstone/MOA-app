@@ -7,6 +7,7 @@ Meeting 테이블에 대한 DB 접근 로직을 담당하는 Repository
 - 회의 생성
 - 로그인 사용자 기준 회의 단건 조회
 - 로그인 사용자 기준 회의 목록 조회
+- 폴더 기준 회의 목록 조회
 - 회의 수정
 - 회의 삭제
 
@@ -34,10 +35,14 @@ def create_meeting(
 ) -> Meeting:
     """
     회의 생성
+
+    folder_id가 있으면 해당 폴더에 속한 회의로 생성한다.
+    folder_id가 None이면 폴더 미지정 회의로 생성한다.
     """
 
     meeting = Meeting(
         user_id=user_id,
+        folder_id=meeting_data.folder_id,
         title=meeting_data.title,
         meeting_date=meeting_data.meeting_date,
         meeting_time=meeting_data.meeting_time,
@@ -94,12 +99,44 @@ def get_meetings_by_user_id(
     limit: int = 100,
 ) -> list[Meeting]:
     """
-    특정 사용자의 회의 목록 조회
+    특정 사용자의 전체 회의 목록 조회
     """
 
     return (
         db.query(Meeting)
         .filter(Meeting.user_id == user_id)
+        .order_by(Meeting.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+
+def get_meetings_by_user_id_and_folder_id(
+    db: Session,
+    user_id: int,
+    folder_id: int | None,
+    skip: int = 0,
+    limit: int = 100,
+) -> list[Meeting]:
+    """
+    특정 사용자의 특정 폴더 회의 목록 조회
+
+    folder_id가 None이면 폴더 미지정 회의를 조회한다.
+    """
+
+    query = (
+        db.query(Meeting)
+        .filter(Meeting.user_id == user_id)
+    )
+
+    if folder_id is None:
+        query = query.filter(Meeting.folder_id.is_(None))
+    else:
+        query = query.filter(Meeting.folder_id == folder_id)
+
+    return (
+        query
         .order_by(Meeting.created_at.desc())
         .offset(skip)
         .limit(limit)
@@ -115,10 +152,20 @@ def update_meeting(
 ) -> Meeting:
     """
     회의 수정
+
+    주의
+    ----
+    folder_id는 None으로 수정할 수도 있어야 하므로
+    단순히 if meeting_data.folder_id is not None 방식으로 처리하지 않는다.
     """
 
     if meeting_data.title is not None:
         meeting.title = meeting_data.title
+
+    # folder_id는 null로 변경하는 요청도 반영해야 하므로
+    # 요청에 folder_id 필드가 포함되었는지 확인한다.
+    if "folder_id" in meeting_data.model_fields_set:
+        meeting.folder_id = meeting_data.folder_id
 
     if meeting_data.meeting_date is not None:
         meeting.meeting_date = meeting_data.meeting_date

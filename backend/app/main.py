@@ -28,6 +28,7 @@ from routers import (
     upload_router,
     decision_router,
     action_item_router,
+    folder_router,
 )
 from storage.upload_paths import ensure_base_upload_dirs
 
@@ -116,6 +117,14 @@ def health_check() -> dict:
 # - POST /auth/register
 # - POST /auth/login
 app.include_router(auth_router)
+
+# 폴더 관련 API
+# - 폴더 생성
+# - 폴더 목록 조회
+# - 폴더 이름 수정
+# - 폴더 삭제
+# - 특정 폴더의 회의 목록 조회
+app.include_router(folder_router)
 
 # 회의 관련 API
 # - 회의 생성

@@ -14,6 +14,7 @@ meeting_service.py
 주의
 - summary 생성/조회/수정 로직은 summary_service.py에서 담당한다.
 - meeting_service.py는 회의 기본 정보 관리에 집중한다.
+- folder_id가 들어오는 경우 해당 폴더가 현재 로그인한 사용자의 폴더인지 확인한다.
 """
 
 from __future__ import annotations
@@ -21,14 +22,17 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
+from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from models.user_model import User
+from repositories.folder_repository import get_folder_by_id_and_user_id
 from repositories.meeting_repository import (
     create_meeting,
     delete_meeting,
     get_meeting_by_id_and_user_id,
     get_meetings_by_user_id,
+    get_meetings_by_user_id_and_folder_id,
     update_meeting,
 )
 from repositories.transcript_repository import get_transcripts_by_meeting_id
@@ -98,6 +102,7 @@ def meeting_to_response(meeting) -> MeetingResponse:
 
     return MeetingResponse(
         id=meeting.id,
+        folder_id=getattr(meeting, "folder_id", None),
         title=meeting.title,
         meeting_date=getattr(meeting, "meeting_date", None),
         meeting_time=getattr(meeting, "meeting_time", None),
@@ -106,6 +111,33 @@ def meeting_to_response(meeting) -> MeetingResponse:
         created_at=meeting.created_at,
         updated_at=meeting.updated_at,
     )
+
+
+def _validate_folder_ownership(
+    db: Session,
+    folder_id: int | None,
+    current_user: User,
+) -> None:
+    """
+    folder_id가 현재 로그인한 사용자의 폴더인지 확인
+
+    folder_id가 None이면 폴더 미지정이므로 검사하지 않는다.
+    """
+
+    if folder_id is None:
+        return
+
+    folder = get_folder_by_id_and_user_id(
+        db=db,
+        folder_id=folder_id,
+        user_id=current_user.id,
+    )
+
+    if folder is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="폴더를 찾을 수 없습니다.",
+        )
 
 
 # -----------------------------------------
@@ -121,7 +153,14 @@ def create_new_meeting(
     회의 생성 서비스
 
     현재 로그인한 사용자의 id를 user_id로 저장한다.
+    folder_id가 있으면 해당 폴더가 현재 로그인한 사용자의 폴더인지 확인한다.
     """
+
+    _validate_folder_ownership(
+        db=db,
+        folder_id=meeting_data.folder_id,
+        current_user=current_user,
+    )
 
     attendees_text = attendees_list_to_text(meeting_data.attendees)
 
@@ -159,19 +198,38 @@ def get_meeting_detail(
 def get_meeting_list(
     db: Session,
     current_user: User,
+    folder_id: int | None = None,
     skip: int = 0,
     limit: int = 100,
 ) -> list[MeetingResponse]:
     """
     현재 로그인한 사용자의 회의 목록 조회 서비스
+
+    folder_id가 None이면 전체 회의를 조회한다.
+    folder_id가 있으면 해당 폴더의 회의만 조회한다.
     """
 
-    meetings = get_meetings_by_user_id(
-        db=db,
-        user_id=current_user.id,
-        skip=skip,
-        limit=limit,
-    )
+    if folder_id is None:
+        meetings = get_meetings_by_user_id(
+            db=db,
+            user_id=current_user.id,
+            skip=skip,
+            limit=limit,
+        )
+    else:
+        _validate_folder_ownership(
+            db=db,
+            folder_id=folder_id,
+            current_user=current_user,
+        )
+
+        meetings = get_meetings_by_user_id_and_folder_id(
+            db=db,
+            user_id=current_user.id,
+            folder_id=folder_id,
+            skip=skip,
+            limit=limit,
+        )
 
     return [
         meeting_to_response(meeting)
@@ -187,6 +245,10 @@ def update_meeting_detail(
 ) -> MeetingResponse | None:
     """
     현재 로그인한 사용자의 회의 수정 서비스
+
+    folder_id가 요청에 포함된 경우:
+    - folder_id가 숫자이면 해당 폴더가 현재 사용자의 폴더인지 확인
+    - folder_id가 null이면 폴더 미지정으로 변경
     """
 
     meeting = get_meeting_by_id_and_user_id(
@@ -197,6 +259,13 @@ def update_meeting_detail(
 
     if meeting is None:
         return None
+
+    if "folder_id" in meeting_data.model_fields_set:
+        _validate_folder_ownership(
+            db=db,
+            folder_id=meeting_data.folder_id,
+            current_user=current_user,
+        )
 
     attendees_text = None
 
