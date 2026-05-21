@@ -38,8 +38,8 @@ class FolderSelectFragment : Fragment(R.layout.fragment_folder_select) {
                 selectedFolderName = folder.name
             },
             onAddClick = { showAddFolderDialog() },
-            onFolderLongClick = { _ ->
-                Toast.makeText(requireContext(), "폴더 수정/삭제 API 연결 전입니다.", Toast.LENGTH_SHORT).show()
+            onFolderLongClick = { folder ->
+                showFolderActionsDialog(folder)
             }
         )
 
@@ -83,6 +83,8 @@ class FolderSelectFragment : Fragment(R.layout.fragment_folder_select) {
                 val name = editText.text.toString().trim()
                 if (name.isNotEmpty()) {
                     createFolder(name)
+                } else {
+                    Toast.makeText(requireContext(), "폴더명을 입력하세요.", Toast.LENGTH_SHORT).show()
                 }
             }
             .setNegativeButton("취소", null)
@@ -96,11 +98,100 @@ class FolderSelectFragment : Fragment(R.layout.fragment_folder_select) {
                     selectedFolderId = created.id
                     selectedFolderName = created.name
                     loadFolders()
+                    Toast.makeText(requireContext(), "폴더가 추가되었습니다.", Toast.LENGTH_SHORT).show()
                 }
                 .onFailure { error ->
                     Toast.makeText(
                         requireContext(),
                         error.message ?: "폴더 생성에 실패했습니다.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+        }
+    }
+
+    private fun showFolderActionsDialog(folder: FolderUiItem.Folder) {
+        val items = arrayOf("이름 수정", "삭제")
+
+        AlertDialog.Builder(requireContext())
+            .setTitle(folder.name)
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> showRenameFolderDialog(folder)
+                    1 -> showDeleteFolderDialog(folder)
+                }
+            }
+            .setNegativeButton("취소", null)
+            .show()
+    }
+
+    private fun showRenameFolderDialog(folder: FolderUiItem.Folder) {
+        val editText = EditText(requireContext())
+        editText.setText(folder.name)
+        editText.setSelection(folder.name.length)
+
+        AlertDialog.Builder(requireContext())
+            .setTitle("폴더 이름 수정")
+            .setView(editText)
+            .setPositiveButton("수정") { _, _ ->
+                val newName = editText.text.toString().trim()
+                if (newName.isBlank()) {
+                    Toast.makeText(requireContext(), "폴더명을 입력하세요.", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                if (newName == folder.name) return@setPositiveButton
+                renameFolder(folder.id, newName)
+            }
+            .setNegativeButton("취소", null)
+            .show()
+    }
+
+    private fun renameFolder(folderId: Int, newName: String) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            runCatching { folderRepository.updateFolder(folderId, newName) }
+                .onSuccess { updated ->
+                    if (selectedFolderId == updated.id) {
+                        selectedFolderName = updated.name
+                    }
+                    loadFolders()
+                    Toast.makeText(requireContext(), "폴더명이 수정되었습니다.", Toast.LENGTH_SHORT).show()
+                }
+                .onFailure { error ->
+                    Toast.makeText(
+                        requireContext(),
+                        error.message ?: "폴더 이름 수정에 실패했습니다.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+        }
+    }
+
+    private fun showDeleteFolderDialog(folder: FolderUiItem.Folder) {
+        AlertDialog.Builder(requireContext())
+            .setTitle("폴더 삭제")
+            .setMessage("'${folder.name}' 폴더를 삭제할까요?")
+            .setPositiveButton("삭제") { _, _ ->
+                deleteFolder(folder)
+            }
+            .setNegativeButton("취소", null)
+            .show()
+    }
+
+    private fun deleteFolder(folder: FolderUiItem.Folder) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            runCatching { folderRepository.deleteFolder(folder.id) }
+                .onSuccess {
+                    if (selectedFolderId == folder.id) {
+                        selectedFolderId = null
+                        selectedFolderName = null
+                    }
+                    loadFolders()
+                    Toast.makeText(requireContext(), "폴더가 삭제되었습니다.", Toast.LENGTH_SHORT).show()
+                }
+                .onFailure { error ->
+                    Toast.makeText(
+                        requireContext(),
+                        error.message ?: "폴더 삭제에 실패했습니다.",
                         Toast.LENGTH_SHORT
                     ).show()
                 }
