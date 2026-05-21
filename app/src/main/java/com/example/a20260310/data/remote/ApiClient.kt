@@ -9,8 +9,14 @@ import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
 object ApiClient {
-    val meetingApi: MeetingApiService by lazy { retrofit.create(MeetingApiService::class.java) }
-    val authApi: AuthApiService by lazy { retrofit.create(AuthApiService::class.java) }
+
+    val meetingApi: MeetingApiService by lazy {
+        retrofit.create(MeetingApiService::class.java)
+    }
+
+    val authApi: AuthApiService by lazy {
+        retrofit.create(AuthApiService::class.java)
+    }
 
     private val retrofit: Retrofit by lazy {
         val logging = HttpLoggingInterceptor().apply {
@@ -24,17 +30,19 @@ object ApiClient {
 
         val client = OkHttpClient.Builder()
             .addInterceptor { chain ->
-                val request = chain.request()
+                val original = chain.request()
                 val token = TokenManager.getAccessToken()
-                val authenticatedRequest =
+
+                val request =
                     if (token.isNullOrBlank()) {
-                        request
+                        original
                     } else {
-                        request.newBuilder()
+                        original.newBuilder()
                             .header("Authorization", "Bearer $token")
                             .build()
                     }
-                chain.proceed(authenticatedRequest)
+
+                chain.proceed(request)
             }
             .addInterceptor(logging)
             .connectTimeout(120, TimeUnit.SECONDS)

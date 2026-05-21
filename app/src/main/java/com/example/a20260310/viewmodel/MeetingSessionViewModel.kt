@@ -1,14 +1,18 @@
 package com.example.a20260310.viewmodel
 
+import android.app.Application
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.os.SystemClock
+import android.util.Log
+import android.util.Log.e
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.a20260310.data.local.MeetingLocalFilesPrefs
 import com.example.a20260310.data.model.Meeting
 import com.example.a20260310.data.model.MeetingDraft
 import com.example.a20260310.data.model.MeetingStatus
@@ -25,19 +29,20 @@ import retrofit2.HttpException
 import java.io.File
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.UUID
 import kotlin.math.max
 import kotlin.math.min
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
 
 data class SelectedSourceFile(
     val id: String = UUID.randomUUID().toString(),
     val type: Type,
     val displayName: String,
     val localPath: String,
-    /** 녹음 세그먼트 m4a 경로(순서). 비어 있으면 [localPath]만 사용한다. */
     val segmentLocalPaths: List<String> = emptyList(),
 ) {
     enum class Type { AUDIO_RECORD, AUDIO_UPLOAD, IMAGE, DOCUMENT }
@@ -48,14 +53,9 @@ enum class SummaryPanelPhase {
     COMPLETED,
 }
 
-/**
- * 완료 결과 구분 (서버 꺼짐·타임아웃 등 테스트 폴백 vs 실제 API 성공).
- */
 enum class SummaryCompletionMode {
     NONE,
     REAL_SUCCESS,
-    /** 서버 미기동·연결/타임아웃 등으로 catch 더미-only 완료 — REAL_SUCCESS 아님 */
-    TEST_NETWORK_FALLBACK,
 }
 
 data class SummaryProgressState(
@@ -67,7 +67,6 @@ data class SummaryProgressState(
     val phase: SummaryPanelPhase,
     val errorMessage: String?,
     val summarySucceeded: Boolean,
-    /** RUNNING 뒤에 대기 중인 작업 수 (프로세스 메모리 큐만, 앱 재실행 시 복원 없음) */
     val waitingCount: Int = 0,
     val completionMode: SummaryCompletionMode = SummaryCompletionMode.NONE,
 ) {
@@ -88,7 +87,6 @@ data class SummaryProgressState(
     }
 }
 
-/** 프로세스 메모리에만 유지되는 요약 작업 단위 */
 private data class QueuedSummaryJob(
     val requestId: String,
     val draft: MeetingDraft,
@@ -98,8 +96,9 @@ private data class QueuedSummaryJob(
 )
 
 class MeetingSessionViewModel(
+    application: Application,
     private val repository: MeetingRepository = MeetingRepository(),
-) : ViewModel() {
+) : AndroidViewModel(application) {
 
     @Volatile
     private var draft: MeetingDraft = MeetingDraft()
@@ -119,7 +118,6 @@ class MeetingSessionViewModel(
     private val _selectedFiles = MutableLiveData<List<SelectedSourceFile>>(emptyList())
     val selectedFiles: LiveData<List<SelectedSourceFile>> = _selectedFiles
 
-    /** 폼 입력 기준 회의 엔티티. `serverFilePaths`는 업로드 응답 `file_path`만 누적한다. */
     private val _currentMeeting = MutableLiveData<Meeting?>(null)
     val currentMeeting: LiveData<Meeting?> = _currentMeeting
 
@@ -129,7 +127,6 @@ class MeetingSessionViewModel(
     private val _currentBackendMeetingId = MutableLiveData<Int?>(null)
     val currentBackendMeetingId: LiveData<Int?> = _currentBackendMeetingId
 
-    /** 회의 ID → 업로드 API에서 받은 `file_path` 목록 (같은 앱 세션 내 상세·파일 탭용). */
     private val serverFilePathsByMeetingId = mutableMapOf<Int, List<String>>()
 
     fun rememberServerFilePaths(meetingId: Int, paths: List<String>) {
@@ -168,8 +165,6 @@ class MeetingSessionViewModel(
     private var runningJob: QueuedSummaryJob? = null
     private var queueProcessorRunning = false
 
-    private var lastSummarizeUsedFallback: Boolean = false
-
     private fun uiMeetingTitle(): String = draft.title.trim().ifBlank { "회의" }
 
     fun setSummaryPanelExpanded(expanded: Boolean) {
@@ -207,10 +202,9 @@ class MeetingSessionViewModel(
 
     private fun patchCurrentMeeting(transform: (Meeting) -> Meeting) {
         val cur = _currentMeeting.value ?: return
-        _currentMeeting.postValue(transform(cur))
+        _currentMeeting.value = transform(cur)
     }
 
-    /** 파이프라인 진행 중 초안만 있을 때 */
     private fun ensureMeetingFromDraft(snapshot: MeetingDraft): Meeting {
         val existing = _currentMeeting.value
         if (existing != null) return existing
@@ -225,7 +219,7 @@ class MeetingSessionViewModel(
                 status = MeetingStatus.CREATED,
                 summary = null,
             )
-        _currentMeeting.postValue(created)
+        _currentMeeting.value = created
         return created
     }
 
@@ -246,24 +240,21 @@ class MeetingSessionViewModel(
         _selectedFiles.value = _selectedFiles.value.orEmpty().filterNot { it.id == id }
     }
 
-    /**
-     * 새 회의 작성 플로우용 임시 첨부만 비운다.
-     * 요약 큐·`minutes`·`summaryProgress`·`currentMeeting`(직전 결과)·파이프라인 오류 상태는 건드리지 않는다.
-     */
     fun clearNewMeetingAttachmentSelection() {
-        _selectedFiles.postValue(emptyList())
+        _selectedFiles.value = emptyList()
     }
 
     fun hasSelectedFilesForSummary(): Boolean = _selectedFiles.value.orEmpty().isNotEmpty()
 
     private fun waitingCountSnapshot(): Int = synchronized(queueLock) { waitingQueue.size }
 
-    /**
-     * 현재 선택된 회의·파일 스냅샷으로 요약 작업을 **메모리 큐**에 넣고,
-     * 진행기가 한 번에 하나씩 순차 실행한다. (앱 프로세스 종료 시 큐 소멸)
-     */
     fun startSummarizePipeline() {
-        if (!hasSelectedFilesForSummary()) return
+        Log.d("MOA", "startSummarizePipeline selectedFiles=${_selectedFiles.value?.size}")
+
+        if (!hasSelectedFilesForSummary()) {
+            Log.d("MOA", "no selected files")
+            return
+        }
 
         val filesSnapshot = _selectedFiles.value.orEmpty().toList()
         val draftSnapshot = draft
@@ -279,12 +270,65 @@ class MeetingSessionViewModel(
                 estimateMs = estimateMs,
             )
 
+        var shouldLaunchProcessor = false
+
         synchronized(queueLock) {
             waitingQueue.addLast(job)
+            Log.d("MOA", "enqueue job id=${job.requestId} files=${filesSnapshot.size} estimateMs=$estimateMs")
+
+            if (!queueProcessorRunning) {
+                queueProcessorRunning = true
+                shouldLaunchProcessor = true
+            }
         }
 
         bumpWaitingUiAfterEnqueue()
-        ensureQueueProcessor()
+
+        if (shouldLaunchProcessor) {
+            launchQueueProcessor()
+        }
+    }
+
+    private fun launchQueueProcessor() {
+        viewModelScope.launch {
+            try {
+                Log.d("MOA", "queueProcessor launched")
+
+                while (true) {
+                    val job =
+                        synchronized(queueLock) {
+                            if (waitingQueue.isEmpty()) {
+                                queueProcessorRunning = false
+                                null
+                            } else {
+                                waitingQueue.removeFirst().also { runningJob = it }
+                            }
+                        } ?: break
+
+                    try {
+                        Log.d("MOA", "runQueuedJob start requestId=${job.requestId}")
+                        runQueuedJob(job)
+                    } catch (t: Throwable) {
+                        Log.e("MOA", "runQueuedJob failed requestId=${job.requestId}", t)
+                    } finally {
+                        synchronized(queueLock) {
+                            runningJob = null
+                        }
+                    }
+                }
+
+                Log.d("MOA", "queueProcessor finished")
+            } finally {
+                synchronized(queueLock) {
+                    if (waitingQueue.isEmpty()) {
+                        queueProcessorRunning = false
+                    } else if (!queueProcessorRunning) {
+                        queueProcessorRunning = true
+                        viewModelScope.launch { launchQueueProcessor() }
+                    }
+                }
+            }
+        }
     }
 
     private fun bumpWaitingUiAfterEnqueue() {
@@ -331,7 +375,9 @@ class MeetingSessionViewModel(
         }
         viewModelScope.launch {
             try {
+                Log.d("MOA","ensureQueueProcessor start, queueProcessorRunning=$queueProcessorRunning")
                 while (true) {
+                    Log.d("MOA","ensureQueueProcessor summerizing, queueProcessorRunning=$queueProcessorRunning")
                     val job =
                         synchronized(queueLock) {
                             if (waitingQueue.isEmpty()) {
@@ -350,6 +396,7 @@ class MeetingSessionViewModel(
                         runningJob = null
                     }
                 }
+                Log.d("MOA","ensureQueueProcessor end, queueProcessorRunning=$queueProcessorRunning")
             } finally {
                 synchronized(queueLock) {
                     queueProcessorRunning = false
@@ -393,7 +440,6 @@ class MeetingSessionViewModel(
             }
 
         try {
-            lastSummarizeUsedFallback = false
             performSummarizePipeline(job.draft, job.files)
             ticker.cancel()
         } finally {
@@ -402,12 +448,6 @@ class MeetingSessionViewModel(
 
             val mins = _minutes.value
             if (mins != null) {
-                val mode =
-                    if (lastSummarizeUsedFallback) {
-                        SummaryCompletionMode.TEST_NETWORK_FALLBACK
-                    } else {
-                        SummaryCompletionMode.REAL_SUCCESS
-                    }
                 _summaryProgress.postValue(
                     SummaryProgressState(
                         meetingTitle = job.meetingTitle,
@@ -417,10 +457,9 @@ class MeetingSessionViewModel(
                         isComplete = true,
                         phase = SummaryPanelPhase.COMPLETED,
                         errorMessage = _pipelineError.value,
-                        // 서버 미기동·타임아웃 폴백도 패널에서는 완료(체크)로 표시 — 구분은 completionMode
                         summarySucceeded = true,
                         waitingCount = waitingCountSnapshot(),
-                        completionMode = mode,
+                        completionMode = SummaryCompletionMode.REAL_SUCCESS,
                     ),
                 )
             } else {
@@ -466,11 +505,11 @@ class MeetingSessionViewModel(
             }
         }
         val audioFactor = when {
-            totalAudioDurationMs >= 3_600_000L -> 0.20 // 1시간 이상은 여유 있게 추정
-            totalAudioDurationMs >= 1_800_000L -> 0.15 // 30분 이상
+            totalAudioDurationMs >= 3_600_000L -> 0.20
+            totalAudioDurationMs >= 1_800_000L -> 0.15
             else -> 0.10
         }
-        val fromAudio = (totalAudioDurationMs * audioFactor).toLong() // 5분 오디오 ~= 30초
+        val fromAudio = (totalAudioDurationMs * audioFactor).toLong()
         val fromNonAudio = nonAudioCount * 3_000L
         val estimate = fromAudio + fromNonAudio
         return estimate.coerceAtLeast(10_000L)
@@ -486,7 +525,6 @@ class MeetingSessionViewModel(
                 ?.toLongOrNull()
                 ?.coerceAtLeast(0L) ?: 0L
         } catch (_: Exception) {
-            // 메타데이터를 읽지 못한 경우 최소 추정치로 보정
             15_000L
         } finally {
             try {
@@ -496,25 +534,69 @@ class MeetingSessionViewModel(
         }
     }
 
-    private suspend fun performSummarizePipeline(snapshot: MeetingDraft, selected: List<SelectedSourceFile>) {
+    private suspend fun performSummarizePipeline(
+        snapshot: MeetingDraft,
+        selected: List<SelectedSourceFile>,
+    ) {
         _pipelineError.value = null
-        lastSummarizeUsedFallback = false
         ensureMeetingFromDraft(snapshot)
         patchCurrentMeeting { it.copy(status = MeetingStatus.PROCESSING) }
+
         try {
             val uploadedServerPaths = mutableListOf<String>()
-            val created =
+            val serverDate = toServerDate(snapshot.date)
+            val serverTime = toServerTime(snapshot.time)
+
+            Log.d(
+                "MOA",
+                "createMeeting request title=${snapshot.title} date=${snapshot.date}->$serverDate time=${snapshot.time}->$serverTime attendeesCount=${snapshot.participantList().size} attendees=${snapshot.participantList()}"
+            )
+
+            val created = try {
                 withContext(Dispatchers.IO) {
                     repository.createMeeting(
                         title = snapshot.title.ifBlank { "무제 회의" },
-                        meetingDate = snapshot.date.trim(),
-                        meetingTime = snapshot.time.trim(),
+                        folderId = null,
+                        meetingDate = serverDate,
+                        meetingTime = serverTime,
                         attendees = snapshot.participantList(),
                         description = null,
                     )
                 }
+            } catch (e: HttpException) {
+                val errorText = try {
+                    e.response()?.errorBody()?.string()
+                } catch (readError: Exception) {
+                    "errorBody read failed: ${readError.message}"
+                }
+
+                Log.e(
+                    "MOA",
+                    "createMeeting HttpException code=${e.code()} message=${e.message()} errorBody=$errorText",
+                    e
+                )
+                throw e
+            }
+
             _currentBackendMeetingId.postValue(created.id)
+
+            val appContext = getApplication<Application>().applicationContext
+            val selectedFolder =
+                MeetingLocalFilesPrefs.prefs(appContext)
+                    .getString("selected_folder", null)
+                    ?.trim()
+                    .orEmpty()
+
+            if (selectedFolder.isNotBlank()) {
+                MeetingLocalFilesPrefs.saveMeetingFolder(
+                    context = appContext,
+                    meetingId = created.id,
+                    folderName = selectedFolder,
+                )
+            }
+
             var latestTranscriptText = ""
+
             withContext(Dispatchers.IO) {
                 val audioFilesToUpload = mutableListOf<File>()
                 val imageFilesToUpload = mutableListOf<File>()
@@ -554,9 +636,10 @@ class MeetingSessionViewModel(
 
                 try {
                     if (audioFilesToUpload.isNotEmpty()) {
+                        Log.d("MOA", "uploadAudioFiles start count=${audioFilesToUpload.size}")
                         val transcript = repository.uploadAudioFiles(created.id, audioFilesToUpload)
+                        Log.d("MOA", "uploadAudioFiles success")
                         latestTranscriptText = transcript.content
-                        // 오디오 업로드 응답에 서버 파일 경로 필드 없음 → serverFilePaths에 저장하지 않음
                     }
                     if (imageFilesToUpload.isNotEmpty()) {
                         val imageResponses =
@@ -576,11 +659,22 @@ class MeetingSessionViewModel(
                     tempGeneratedAudioFiles.forEach { it.delete() }
                 }
             }
-            val summaryResponse =
+
+            Log.d("MOA", "generateSummary start")
+            withContext(Dispatchers.IO) {
+                repository.generateSummary(created.id)
+            }
+            Log.d("MOA", "generateSummary success")
+
+            Log.d("MOA", "getSummary start")
+            val summaryDetail =
                 withContext(Dispatchers.IO) {
-                    repository.generateSummary(created.id)
+                    repository.getSummary(created.id)
                 }
-            val ui = MinutesUiMapper.build(snapshot, latestTranscriptText, summaryResponse)
+            Log.d("MOA", "getSummary success")
+
+            val ui = MinutesUiMapper.build(snapshot, latestTranscriptText, summaryDetail)
+
             patchCurrentMeeting {
                 it.copy(
                     status = MeetingStatus.COMPLETED,
@@ -590,16 +684,18 @@ class MeetingSessionViewModel(
             }
             _minutes.value = ui
         } catch (e: Exception) {
-            // 실 테스트 모드: 네트워크/서버 오류는 더미 성공 처리하지 않고 실패로 표시한다.
+            Log.e("MOA", "performSummarizePipeline failed", e)
             val message = buildPipelineErrorMessage(e)
-            _pipelineError.postValue(message)
+
+            Log.e("MOA", "pipelineError=$message")
+            _pipelineError.value = message
             patchCurrentMeeting {
                 it.copy(
                     status = MeetingStatus.FAILED,
                     summary = null,
                 )
             }
-            _minutes.postValue(null)
+            _minutes.value = null
         }
     }
 
@@ -614,6 +710,70 @@ class MeetingSessionViewModel(
         return error.message?.takeIf { it.isNotBlank() } ?: "요약 요청 중 오류가 발생했습니다."
     }
 
+    private fun toServerDate(input: String): String {
+        val value = input.trim()
+        if (value.isBlank()) return value
+
+        val normalized = value.replace('/', '-').replace('.', '-')
+        val candidates =
+            listOf(
+                DateTimeFormatter.ofPattern("yyyy-M-d"),
+                DateTimeFormatter.ofPattern("yyyy-MM-dd"),
+            )
+
+        for (formatter in candidates) {
+            try {
+                val parsed = LocalDate.parse(normalized, formatter)
+                return parsed.format(DateTimeFormatter.ISO_LOCAL_DATE)
+            } catch (_: Exception) {
+            }
+        }
+
+        return normalized
+    }
+
+    private fun toServerTime(input: String): String {
+        val value = input.trim()
+        if (value.isBlank()) return value
+
+        val koreanLocale = Locale.KOREAN
+        val outputFormatter = DateTimeFormatter.ofPattern("HH:mm")
+
+        val formatters =
+            listOf(
+                DateTimeFormatter.ofPattern("a h:mm", koreanLocale),
+                DateTimeFormatter.ofPattern("a hh:mm", koreanLocale),
+                DateTimeFormatter.ofPattern("H:mm"),
+                DateTimeFormatter.ofPattern("HH:mm"),
+            )
+
+        for (formatter in formatters) {
+            try {
+                val parsed = LocalTime.parse(value, formatter)
+                return parsed.format(outputFormatter)
+            } catch (_: Exception) {
+            }
+        }
+
+        val regex = Regex("""(오전|오후)\s*(\d{1,2}):(\d{2})""")
+        val match = regex.matchEntire(value)
+        if (match != null) {
+            val ampm = match.groupValues[1]
+            var hour = match.groupValues[2].toInt()
+            val minute = match.groupValues[3]
+
+            if (ampm == "오전") {
+                if (hour == 12) hour = 0
+            } else {
+                if (hour != 12) hour += 12
+            }
+
+            return "%02d:%s".format(hour, minute)
+        }
+
+        return value
+    }
+
     private fun mergeAudioSegmentsToWav(segments: List<File>): File {
         require(segments.isNotEmpty()) { "No segment files to merge." }
         val output =
@@ -623,7 +783,6 @@ class MeetingSessionViewModel(
                 segments.first().parentFile,
             )
         FileOutputStream(output).use { fos ->
-            // WAV 헤더 자리 확보(44 bytes), 데이터 크기 확정 후 덮어쓴다.
             fos.write(ByteArray(44))
             var totalPcmBytes = 0L
             var sampleRateHz = 16_000
@@ -650,8 +809,8 @@ class MeetingSessionViewModel(
                     val bps =
                         if (format.containsKey(MediaFormat.KEY_PCM_ENCODING)) {
                             when (format.getInteger(MediaFormat.KEY_PCM_ENCODING)) {
-                                2 -> 16 // ENCODING_PCM_16BIT
-                                4 -> 32 // ENCODING_PCM_FLOAT
+                                2 -> 16
+                                4 -> 32
                                 else -> 16
                             }
                         } else {
@@ -776,7 +935,6 @@ class MeetingSessionViewModel(
             raf.writeBytes("WAVE")
             raf.writeBytes("fmt ")
             raf.writeIntLE(16)
-            // PCM(1) / Float(3)
             raf.writeShortLE(if (bitsPerSample == 32) 3 else 1)
             raf.writeShortLE(channelCount.toShort().toInt())
             raf.writeIntLE(sampleRateHz)
@@ -798,5 +956,23 @@ class MeetingSessionViewModel(
     private fun RandomAccessFile.writeShortLE(value: Int) {
         write(value and 0xFF)
         write(value shr 8 and 0xFF)
+    }
+
+    companion object {
+        fun factory(
+            application: Application,
+            repository: MeetingRepository = MeetingRepository(),
+        ): androidx.lifecycle.ViewModelProvider.Factory =
+            object : androidx.lifecycle.ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
+                override fun <T : androidx.lifecycle.ViewModel> create(
+                    modelClass: Class<T>
+                ): T {
+                    if (modelClass.isAssignableFrom(MeetingSessionViewModel::class.java)) {
+                        return MeetingSessionViewModel(application, repository) as T
+                    }
+                    throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+                }
+            }
     }
 }

@@ -39,7 +39,9 @@ import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
 class HomeFragment : Fragment(R.layout.fragment_home) {
-    private val sessionViewModel: MeetingSessionViewModel by activityViewModels()
+    private val sessionViewModel: MeetingSessionViewModel by activityViewModels {
+        MeetingSessionViewModel.factory(requireActivity().application)
+    }
     private val meetingRepository = MeetingRepository()
     private lateinit var recycler: RecyclerView
     private lateinit var folderTabs: LinearLayout

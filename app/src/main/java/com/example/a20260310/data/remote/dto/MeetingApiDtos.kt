@@ -3,11 +3,23 @@ package com.example.a20260310.data.remote.dto
 import com.google.gson.annotations.SerializedName
 
 data class MeetingCreateRequest(
+    @SerializedName("title")
     val title: String,
-    @SerializedName("meeting_date") val meetingDate: String,
-    @SerializedName("meeting_time") val meetingTime: String,
-    @SerializedName("attendees") val attendees: List<String> = emptyList(),
-    val description: String? = null,
+
+    @SerializedName("folder_id")
+    val folderId: Int?,
+
+    @SerializedName("meeting_date")
+    val meetingDate: String,
+
+    @SerializedName("meeting_time")
+    val meetingTime: String,
+
+    @SerializedName("attendees")
+    val attendees: List<String>,
+
+    @SerializedName("description")
+    val description: String?,
 )
 
 data class MeetingResponseDto(

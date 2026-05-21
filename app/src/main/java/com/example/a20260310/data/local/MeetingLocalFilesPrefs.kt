@@ -99,4 +99,19 @@ object MeetingLocalFilesPrefs {
         if (fromTitle.isEmpty()) return
         writeList(prefs, gson, idKey, fromTitle)
     }
+
+    fun meetingFolderKey(meetingId: Int): String? =
+        if (meetingId > 0) "meeting_${meetingId}_folder" else null
+
+    fun saveMeetingFolder(context: Context, meetingId: Int, folderName: String) {
+        val key = meetingFolderKey(meetingId) ?: return
+        prefs(context).edit()
+            .putString(key, folderName.trim())
+            .apply()
+    }
+
+    fun getMeetingFolder(context: Context, meetingId: Int): String? {
+        val key = meetingFolderKey(meetingId) ?: return null
+        return prefs(context).getString(key, null)
+    }
 }

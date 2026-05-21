@@ -3,15 +3,15 @@ package com.example.a20260310.data.repository
 import android.util.Log
 import com.example.a20260310.data.remote.ApiClient
 import com.example.a20260310.data.remote.MeetingApiService
-import com.example.a20260310.data.remote.dto.ImageUploadResponseDto
-import com.example.a20260310.data.remote.dto.MeetingCreateRequest
-import com.example.a20260310.data.remote.dto.MeetingResponseDto
 import com.example.a20260310.data.remote.dto.ActionItemCreateRequestDto
 import com.example.a20260310.data.remote.dto.ActionItemDto
 import com.example.a20260310.data.remote.dto.ActionItemUpdateRequestDto
 import com.example.a20260310.data.remote.dto.DecisionCreateRequestDto
 import com.example.a20260310.data.remote.dto.DecisionDto
 import com.example.a20260310.data.remote.dto.DecisionUpdateRequestDto
+import com.example.a20260310.data.remote.dto.ImageUploadResponseDto
+import com.example.a20260310.data.remote.dto.MeetingCreateRequest
+import com.example.a20260310.data.remote.dto.MeetingResponseDto
 import com.example.a20260310.data.remote.dto.SummaryDetailResponseDto
 import com.example.a20260310.data.remote.dto.SummaryGenerateResponseDto
 import com.example.a20260310.data.remote.dto.SummaryUpdateRequest
@@ -40,14 +40,20 @@ class MeetingRepository(
         meetingTime: String,
         attendees: List<String>,
         description: String? = null,
+        folderId: Int? = null,
     ): MeetingResponseDto {
+        val normalizedAttendees =
+            attendees.map { it.trim() }
+                .filter { it.isNotEmpty() }
+
         return api.createMeeting(
             MeetingCreateRequest(
-                title = title,
-                meetingDate = meetingDate,
-                meetingTime = meetingTime,
-                attendees = attendees,
-                description = description,
+                title = title.trim(),
+                folderId = folderId,
+                meetingDate = meetingDate.trim(),
+                meetingTime = meetingTime.trim(),
+                attendees = normalizedAttendees,
+                description = description?.trim()?.takeIf { it.isNotEmpty() },
             )
         )
     }
@@ -60,10 +66,6 @@ class MeetingRepository(
         return api.getMeeting(meetingId)
     }
 
-    /**
-     * PATCH /meetings/{id} — 상세 화면 회의 정보 수정용.
-     * [attendees]는 빈 목록이면 서버에 빈 배열로 반영한다.
-     */
     suspend fun updateMeeting(
         meetingId: Int,
         title: String,
@@ -73,13 +75,21 @@ class MeetingRepository(
     ): MeetingResponseDto {
         val trimmedTitle = title.trim()
         require(trimmedTitle.isNotEmpty()) { "제목은 비울 수 없습니다." }
+
+        val normalizedAttendees =
+            attendees.map { it.trim() }
+                .filter { it.isNotEmpty() }
+
+        val attendeeArray = JsonArray().apply {
+            normalizedAttendees.forEach { add(it) }
+        }
+
         val body = JsonObject()
         body.addProperty("title", trimmedTitle)
         body.addProperty("meeting_date", meetingDate.trim())
         body.addProperty("meeting_time", meetingTime.trim())
-        val arr = JsonArray()
-        attendees.map { it.trim() }.filter { it.isNotEmpty() }.forEach { arr.add(it) }
-        body.add("attendees", arr)
+        body.add("attendees", attendeeArray)
+
         return api.updateMeeting(meetingId, body)
     }
 
@@ -95,16 +105,11 @@ class MeetingRepository(
                 val body = file.asRequestBody(mime.toMediaTypeOrNull())
                 MultipartBody.Part.createFormData("files", file.name, body)
             }
-        val path = "upload/audio/$meetingId"
-        Log.d(TAG, "uploadAudioFiles requestPath=/$path filesCount=${parts.size}")
 
         return try {
             api.uploadAudioFiles(meetingId, parts)
         } catch (e: HttpException) {
-            Log.e(
-                TAG,
-                "uploadAudioFiles failed code=${e.code()} path=/$path",
-            )
+            Log.e(TAG, "uploadAudioFiles failed code=${e.code()} path=/upload/audio/$meetingId")
             throw e
         }
     }
@@ -126,12 +131,14 @@ class MeetingRepository(
         require(files.isNotEmpty()) { "uploadImageFiles requires at least one file" }
         val validFiles = files.filter { it.exists() && it.length() > 0L }
         require(validFiles.isNotEmpty()) { "uploadImageFiles requires non-empty files" }
+
         val parts =
             validFiles.map { file ->
                 val mediaType = mediaTypeForUploadFile(file.name).toMediaTypeOrNull()
                 val body = file.asRequestBody(mediaType)
                 MultipartBody.Part.createFormData("files", file.name, body)
             }
+
         val imageTypeBody = imageType.toRequestBody("text/plain".toMediaType())
         return api.uploadImageFiles(meetingId, parts, imageTypeBody)
     }
@@ -156,7 +163,7 @@ class MeetingRepository(
 
     suspend fun updateSummary(
         meetingId: Int,
-        request: SummaryUpdateRequest,
+        request: com.example.a20260310.data.remote.dto.SummaryUpdateRequest,
     ): SummaryDetailResponseDto {
         return api.updateSummary(meetingId, request)
     }

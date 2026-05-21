@@ -13,11 +13,13 @@ class AuthRepository(
     }
 
     suspend fun login(username: String, password: String) {
-        val token = api.login(username = username, password = password)
-        TokenManager.saveAccessToken(token.accessToken)
+        val tokenResponse = api.login(username = username, password = password)
+        TokenManager.saveAccessToken(tokenResponse.accessToken)
     }
 
     fun logout() {
         TokenManager.clear()
     }
+
+    fun isLoggedIn(): Boolean = TokenManager.isLoggedIn()
 }

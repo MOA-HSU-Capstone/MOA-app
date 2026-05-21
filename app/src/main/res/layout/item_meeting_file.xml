@@ -62,7 +62,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="@string/detail_download_file"
             android:padding="8dp"
-            android:src="@drawable/ic_download"
+            android:src="@drawable/ic_play"
             app:tint="@color/color_text_primary" />
     </LinearLayout>
 
