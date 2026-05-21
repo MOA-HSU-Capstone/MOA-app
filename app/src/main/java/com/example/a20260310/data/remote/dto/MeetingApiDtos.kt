@@ -25,6 +25,7 @@ data class MeetingCreateRequest(
 data class MeetingResponseDto(
     @SerializedName("id") val id: Int,
     @SerializedName("title") val title: String,
+    @SerializedName("folder_id") val folderId: Int? = null,
     @SerializedName("meeting_date") val meetingDate: String? = null,
     @SerializedName("meeting_time") val meetingTime: String? = null,
     @SerializedName("attendees") val attendees: List<String>? = emptyList(),

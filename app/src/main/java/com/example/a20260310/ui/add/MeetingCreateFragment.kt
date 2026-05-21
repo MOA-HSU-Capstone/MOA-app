@@ -119,12 +119,17 @@ class MeetingCreateFragment : Fragment(R.layout.fragment_meeting_create) {
                 )
                 .apply()
 
+            val folderId = sessionViewModel.selectedFolderId.value
+            val folderName = sessionViewModel.selectedFolderName.value
+
             sessionViewModel.setDraft(
                 MeetingDraft(
                     title = fullTitle,
                     date = dateInput.text?.toString()?.trim().orEmpty(),
                     time = timeInput.text?.toString()?.trim().orEmpty(),
                     attendees = participants.joinToString(", "),
+                    folderId = sessionViewModel.selectedFolderId.value,
+                    folderName = sessionViewModel.selectedFolderName.value,
                 ),
             )
 

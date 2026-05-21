@@ -7,7 +7,6 @@ import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.os.SystemClock
 import android.util.Log
-import android.util.Log.e
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -556,7 +555,7 @@ class MeetingSessionViewModel(
                 withContext(Dispatchers.IO) {
                     repository.createMeeting(
                         title = snapshot.title.ifBlank { "무제 회의" },
-                        folderId = null,
+                        folderId = snapshot.folderId,
                         meetingDate = serverDate,
                         meetingTime = serverTime,
                         attendees = snapshot.participantList(),
@@ -581,19 +580,19 @@ class MeetingSessionViewModel(
             _currentBackendMeetingId.postValue(created.id)
 
             val appContext = getApplication<Application>().applicationContext
-            val selectedFolder =
-                MeetingLocalFilesPrefs.prefs(appContext)
-                    .getString("selected_folder", null)
-                    ?.trim()
-                    .orEmpty()
-
-            if (selectedFolder.isNotBlank()) {
-                MeetingLocalFilesPrefs.saveMeetingFolder(
-                    context = appContext,
-                    meetingId = created.id,
-                    folderName = selectedFolder,
-                )
-            }
+//            val selectedFolder =
+//                MeetingLocalFilesPrefs.prefs(appContext)
+//                    .getString("selected_folder", null)
+//                    ?.trim()
+//                    .orEmpty()
+//
+//            if (selectedFolder.isNotBlank()) {
+//                MeetingLocalFilesPrefs.saveMeetingFolder(
+//                    context = appContext,
+//                    meetingId = created.id,
+//                    folderName = selectedFolder,
+//                )
+//            }
 
             var latestTranscriptText = ""
 
@@ -956,6 +955,22 @@ class MeetingSessionViewModel(
     private fun RandomAccessFile.writeShortLE(value: Int) {
         write(value and 0xFF)
         write(value shr 8 and 0xFF)
+    }
+
+    private val _selectedFolderId = MutableLiveData<Int?>(null)
+    val selectedFolderId: LiveData<Int?> = _selectedFolderId
+
+    private val _selectedFolderName = MutableLiveData<String?>(null)
+    val selectedFolderName: LiveData<String?> = _selectedFolderName
+
+    fun setSelectedFolder(id: Int?, name: String?) {
+        _selectedFolderId.value = id
+        _selectedFolderName.value = name
+    }
+
+    fun clearSelectedFolder() {
+        _selectedFolderId.value = null
+        _selectedFolderName.value = null
     }
 
     companion object {

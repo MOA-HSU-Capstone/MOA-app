@@ -7,6 +7,7 @@ import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
+import com.example.a20260310.data.remote.FolderApiService
 
 object ApiClient {
 
@@ -16,6 +17,9 @@ object ApiClient {
 
     val authApi: AuthApiService by lazy {
         retrofit.create(AuthApiService::class.java)
+    }
+    val folderApi: FolderApiService by lazy {
+        retrofit.create(FolderApiService::class.java)
     }
 
     private val retrofit: Retrofit by lazy {

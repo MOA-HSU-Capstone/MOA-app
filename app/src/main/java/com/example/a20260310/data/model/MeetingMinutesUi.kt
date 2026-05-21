@@ -7,6 +7,8 @@ data class MeetingDraft(
     val date: String = "",
     val time: String = "",
     val attendees: String = "",
+    val folderId: Int? = null,
+    val folderName: String? = null,
 ) {
     fun displayDatetime(): String {
         val dt = "${date.trim()} ${time.trim()}".trim()
@@ -14,7 +16,9 @@ data class MeetingDraft(
     }
 
     fun participantList(): List<String> =
-        attendees.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+        attendees.split(",")
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
 }
 
 data class MinutesUiModel(

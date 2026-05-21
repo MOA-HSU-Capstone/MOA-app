@@ -1,6 +1,6 @@
 package com.example.a20260310.ui.home
 
-import android.content.Context
+import android.content.res.ColorStateList
 import android.os.Bundle
 import android.view.View
 import android.widget.ImageView
@@ -9,17 +9,21 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.constraintlayout.widget.Group
+import androidx.core.content.ContextCompat
 import androidx.core.view.isVisible
-import android.view.ViewGroup
 import androidx.fragment.app.Fragment
-import androidx.transition.ChangeBounds
-import androidx.transition.TransitionManager
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.transition.ChangeBounds
+import androidx.transition.TransitionManager
 import com.example.a20260310.R
+import com.example.a20260310.data.auth.TokenManager
 import com.example.a20260310.data.model.SimpleRow
+import com.example.a20260310.data.repository.FolderRepository
+import com.example.a20260310.data.repository.MeetingRepository
 import com.example.a20260310.ui.common.SimpleRowAdapter
 import com.example.a20260310.viewmodel.MeetingSessionViewModel
 import com.example.a20260310.viewmodel.SummaryProgressState
@@ -27,14 +31,6 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.progressindicator.CircularProgressIndicator
 import com.google.android.material.progressindicator.LinearProgressIndicator
-import java.io.File
-import java.text.SimpleDateFormat
-import java.util.*
-import android.content.res.ColorStateList
-import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
-import com.example.a20260310.data.auth.TokenManager
-import com.example.a20260310.data.repository.MeetingRepository
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
@@ -42,10 +38,17 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     private val sessionViewModel: MeetingSessionViewModel by activityViewModels {
         MeetingSessionViewModel.factory(requireActivity().application)
     }
+
     private val meetingRepository = MeetingRepository()
+    private val folderRepository = FolderRepository()
+
     private lateinit var recycler: RecyclerView
     private lateinit var folderTabs: LinearLayout
-    private var selectedFolder: String = "전체"
+
+    private var selectedFolderId: Int? = null
+    private var selectedFolderName: String = "전체"
+    private var foldersByName: Map<String, Int?> = mapOf("전체" to null)
+
     private var completionToastShown = false
     private var previousSummaryExpanded: Boolean? = null
 
@@ -54,11 +57,9 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
         recycler = view.findViewById(R.id.recycler)
         folderTabs = view.findViewById(R.id.folderTabs)
-
         recycler.layoutManager = LinearLayoutManager(context)
 
         setupFolderTabs()
-        loadList()
 
         view.findViewById<MaterialButton>(R.id.addMeetingButton).setOnClickListener {
             sessionViewModel.clearNewMeetingAttachmentSelection()
@@ -89,8 +90,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         val panelExpandedCollapseChevron =
             view.findViewById<MaterialButton>(R.id.panelExpandedCollapseChevron)
         val panelProgressBar = view.findViewById<LinearProgressIndicator>(R.id.panelProgressBar)
-        val panelSidePx =
-            resources.getDimensionPixelSize(R.dimen.summary_panel_min_height)
+        val panelSidePx = resources.getDimensionPixelSize(R.dimen.summary_panel_min_height)
 
         fun refreshSummaryPanel(animateLayout: Boolean) {
             val state = sessionViewModel.summaryProgress.value ?: SummaryProgressState.idle()
@@ -153,7 +153,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
             val showCollapsedQueueHint =
                 !expanded && !complete && state.waitingCount > 0 &&
-                    (runningNow || waitingOnly)
+                        (runningNow || waitingOnly)
             panelCollapsedSubtitle.isVisible = showCollapsedQueueHint
             if (showCollapsedQueueHint) {
                 panelCollapsedSubtitle.text =
@@ -190,9 +190,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             sessionViewModel.dismissSummaryProgressPanel()
 
             val bundle = Bundle().apply {
-                sessionViewModel.currentBackendMeetingId.value?.let {
-                    putInt("meetingId", it)
-                }
+                sessionViewModel.currentBackendMeetingId.value?.let { putInt("meetingId", it) }
                 putString("meetingTitle", meetingTitle)
             }
 
@@ -211,29 +209,18 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             when {
                 state.isComplete && hasMinutes && !expanded -> {
                     sessionViewModel.dismissSummaryProgressPanel()
-
                     val bundle = Bundle().apply {
-                        sessionViewModel.currentBackendMeetingId.value?.let {
-                            putInt("meetingId", it)
-                        }
+                        sessionViewModel.currentBackendMeetingId.value?.let { putInt("meetingId", it) }
                         putString("meetingTitle", state.meetingTitle)
                     }
-
                     findNavController().navigate(
                         R.id.action_homeFragment_to_detailFragment,
                         bundle
                     )
                 }
-
                 state.isComplete && hasMinutes && expanded -> Unit
-
-                waitingOnly && !expanded -> {
-                    sessionViewModel.setSummaryPanelExpanded(true)
-                }
-
-                !expanded -> {
-                    sessionViewModel.setSummaryPanelExpanded(true)
-                }
+                waitingOnly && !expanded -> sessionViewModel.setSummaryPanelExpanded(true)
+                !expanded -> sessionViewModel.setSummaryPanelExpanded(true)
             }
         }
 
@@ -243,10 +230,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             if (state.isRunning) {
                 completionToastShown = false
             }
-            if (state.isComplete &&
-                isResumed &&
-                !completionToastShown
-            ) {
+            if (state.isComplete && isResumed && !completionToastShown) {
                 completionToastShown = true
                 Toast.makeText(
                     requireContext(),
@@ -257,8 +241,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
         }
 
         sessionViewModel.summaryPanelExpanded.observe(viewLifecycleOwner) { expanded ->
-            val animate =
-                previousSummaryExpanded != null && previousSummaryExpanded != expanded
+            val animate = previousSummaryExpanded != null && previousSummaryExpanded != expanded
             previousSummaryExpanded = expanded
             refreshSummaryPanel(animateLayout = animate)
         }
@@ -276,57 +259,66 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     }
 
     private fun setupFolderTabs() {
-        folderTabs.removeAllViews()
+        viewLifecycleOwner.lifecycleScope.launch {
+            runCatching { folderRepository.getFolders() }
+                .onSuccess { folders ->
+                    folderTabs.removeAllViews()
 
-        val folders = mutableListOf("전체")
-        folders.addAll(getFolderNames(requireContext()))
+                    val names = mutableListOf("전체").apply {
+                        addAll(folders.map { folder -> folder.name })
+                    }
 
-        folders.forEach { name ->
-            val btn = createFolderButton(name)
-            folderTabs.addView(btn)
+                    foldersByName = buildMap {
+                        put("전체", null)
+                        folders.forEach { folder ->
+                            put(folder.name, folder.id)
+                        }
+                    }
+
+                    names.forEach { name ->
+                        folderTabs.addView(createFolderButton(name))
+                    }
+
+                    updateTabs()
+                    loadList()
+                }
+                .onFailure { error ->
+                    Toast.makeText(
+                        requireContext(),
+                        error.message ?: "폴더 목록을 불러오지 못했습니다.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
         }
-
-        updateTabs()
     }
 
     private fun createFolderButton(name: String): MaterialButton {
-
         val btn = MaterialButton(requireContext())
-
         btn.text = name
-
-        // 직사각형
         btn.cornerRadius = 0
 
-        // 크기
         val params = LinearLayout.LayoutParams(
             LinearLayout.LayoutParams.WRAP_CONTENT,
             LinearLayout.LayoutParams.WRAP_CONTENT
         )
-
         params.marginEnd = 0
         btn.layoutParams = params
 
-        // 내부 여백
         btn.setPadding(48, 20, 48, 20)
-
-        // 테두리
         btn.strokeWidth = 2
         btn.strokeColor = ColorStateList.valueOf(
             ContextCompat.getColor(requireContext(), R.color.color_divider)
         )
-
-        // 기본 색상
         btn.setBackgroundColor(
             ContextCompat.getColor(requireContext(), R.color.color_background)
         )
-
         btn.setTextColor(
             ContextCompat.getColor(requireContext(), R.color.color_text_secondary)
         )
 
         btn.setOnClickListener {
-            selectedFolder = name
+            selectedFolderName = name
+            selectedFolderId = foldersByName[name]
             updateTabs()
             loadList()
         }
@@ -335,27 +327,20 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
     }
 
     private fun updateTabs() {
-
         for (i in 0 until folderTabs.childCount) {
-
             val btn = folderTabs.getChildAt(i) as MaterialButton
 
-            if (btn.text == selectedFolder) {
-
+            if (btn.text == selectedFolderName) {
                 btn.setBackgroundColor(
                     ContextCompat.getColor(requireContext(), R.color.color_primary)
                 )
-
                 btn.setTextColor(
                     ContextCompat.getColor(requireContext(), R.color.color_on_primary)
                 )
-
             } else {
-
                 btn.setBackgroundColor(
                     ContextCompat.getColor(requireContext(), R.color.color_background)
                 )
-
                 btn.setTextColor(
                     ContextCompat.getColor(requireContext(), R.color.color_text_secondary)
                 )
@@ -365,21 +350,12 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
 
     private fun loadList() {
         viewLifecycleOwner.lifecycleScope.launch {
-            val prefs = requireContext().getSharedPreferences("moa_prefs", Context.MODE_PRIVATE)
-
             runCatching {
                 meetingRepository.getMeetings()
             }.onSuccess { meetings ->
-
-                val filteredMeetings = if (selectedFolder == "전체") {
-                    meetings
-                } else {
-                    meetings.filter { meeting ->
-                        val savedFolder = prefs.getString("meeting_${meeting.id}_folder", null)
-                        android.util.Log.d("HomeFragment", "meetingId=${meeting.id}, savedFolder=$savedFolder, selected=$selectedFolder")
-                        savedFolder == selectedFolder
-                    }
-                }
+                val filteredMeetings =
+                    if (selectedFolderId == null) meetings
+                    else meetings.filter { meeting -> meeting.folderId == selectedFolderId }
 
                 val items = filteredMeetings.map { meeting ->
                     SimpleRow(
@@ -424,48 +400,4 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             meetingTime?.trim()?.takeIf { it.isNotEmpty() },
         ).joinToString(" ")
     }
-}
-
-fun getFolderNames(context: Context): List<String> {
-    val prefs = context.getSharedPreferences("moa_prefs", 0)
-    return prefs.getStringSet("folder_list", setOf())?.toList() ?: emptyList()
-}
-
-fun getFilesByFolder(context: Context, folderName: String): List<SimpleRow> {
-
-    val prefs = context.getSharedPreferences("moa_prefs", 0)
-
-    val folder = File(context.filesDir, "MOA/$folderName")
-
-    if (!folder.exists()) return emptyList()
-
-    return folder.listFiles()
-        ?.filter { it.name.endsWith(".m4a") }
-        ?.sortedByDescending { it.lastModified() }
-        ?.map {
-            val title = prefs.getString(it.name, it.name)
-            val date = SimpleDateFormat("yyyy.MM.dd HH:mm", Locale.KOREA)
-                .format(Date(it.lastModified()))
-
-            SimpleRow(title ?: it.name, date)
-        } ?: emptyList()
-}
-
-fun getAllFiles(context: Context): List<SimpleRow> {
-
-    val baseDir = File(context.filesDir, "MOA")
-    val prefs = context.getSharedPreferences("moa_prefs", 0)
-
-    if (!baseDir.exists()) return emptyList()
-
-    return baseDir.walkTopDown()
-        .filter { it.isFile && it.name.endsWith(".m4a") }
-        .sortedByDescending { it.lastModified() }
-        .map {
-            val title = prefs.getString(it.name, it.name)
-            val date = SimpleDateFormat("yyyy년 M월 d일 a HH:mm", Locale.KOREA)
-                .format(Date(it.lastModified()))
-
-            SimpleRow(title ?: it.name, date)
-        }.toList()
 }
