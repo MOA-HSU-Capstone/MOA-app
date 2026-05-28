@@ -62,6 +62,7 @@ from schemas.summary_schema import SummaryCreate, SummaryResponse
 from services.stt_service import transcribe_audio_file
 from storage.file_manager import save_audio_file
 from utils.audio_converter import convert_audio_to_wav
+from utils.audio_splitter import split_wav_file
 from utils.preprocess import (
     preprocess_audio_file,
     normalize_transcript_text,
