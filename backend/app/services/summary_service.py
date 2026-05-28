@@ -22,6 +22,7 @@ summary_service.py
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -163,6 +164,54 @@ def _normalize_summary_result(summary_result: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _parse_summary_content(content: str) -> str:
+    """
+    summaries.content 값을 API 응답용 summary 문자열로 변환한다.
+
+    배경
+    ----
+    현재 설계상 summaries.content에는 요약 본문 문자열만 저장하는 것이 맞다.
+    하지만 이전 오디오 업로드 흐름에서 아래처럼 JSON 문자열 전체가 저장된 데이터가 있을 수 있다.
+
+    예시
+    ----
+    content = "회의 요약 본문"
+    -> "회의 요약 본문"
+
+    content = '{"summary": "회의 요약 본문", "decisions": [], "action_items": []}'
+    -> "회의 요약 본문"
+
+    Returns
+    -------
+    str
+        Swagger / 프론트에 보여줄 순수 summary 본문
+    """
+
+    content = (content or "").strip()
+
+    if not content:
+        return ""
+
+    try:
+        data = json.loads(content)
+
+    except json.JSONDecodeError:
+        return content
+
+    if not isinstance(data, dict):
+        return content
+
+    summary_text = data.get("summary", "")
+
+    if summary_text is None:
+        return ""
+
+    if not isinstance(summary_text, str):
+        return str(summary_text)
+
+    return summary_text.strip()
+
+
 def _summary_to_detail_response(
     summary,
     decisions,
@@ -175,7 +224,7 @@ def _summary_to_detail_response(
     return SummaryDetailResponse(
         id=summary.id,
         meeting_id=summary.meeting_id,
-        summary=summary.content,
+        summary=_parse_summary_content(summary.content),
         decisions=decisions,
         action_items=action_items,
         created_at=summary.created_at,
