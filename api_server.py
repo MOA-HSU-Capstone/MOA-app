@@ -6,7 +6,7 @@ import requests
 import time 
 from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, request, jsonify
-from flask_cors import CORS #노드 접속 가능
+from flask_cors import CORS 
 from faster_whisper import WhisperModel
 from werkzeug.utils import secure_filename
 
@@ -15,7 +15,7 @@ os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 app = Flask(__name__)
 CORS(app)
 app.config['JSON_AS_ASCII'] = False
-app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 500 * 1024 * 1024 # 500MB로 설정
 
 # 🔥 ThreadPool (동시 처리 제한)
 executor = ThreadPoolExecutor(max_workers=2)
