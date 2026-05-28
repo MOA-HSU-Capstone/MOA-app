@@ -3,6 +3,8 @@ package com.example.a20260310
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.ViewModelProvider
+import com.example.a20260310.viewmodel.MeetingSessionViewModel
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.drawerlayout.widget.DrawerLayout
@@ -18,6 +20,12 @@ import com.google.android.material.navigation.NavigationView
 class MainActivity : AppCompatActivity() {
     private lateinit var drawerLayout: DrawerLayout
     private lateinit var appBarConfiguration: AppBarConfiguration
+
+    private val sessionViewModel: MeetingSessionViewModel by lazy {
+        ViewModelProvider(this, MeetingSessionViewModel.factory(application))[
+            MeetingSessionViewModel::class.java,
+        ]
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,6 +66,11 @@ class MainActivity : AppCompatActivity() {
                 if (showChrome) DrawerLayout.LOCK_MODE_UNLOCKED else DrawerLayout.LOCK_MODE_LOCKED_CLOSED
             )
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        sessionViewModel.refreshBackgroundSummaryResults()
     }
 
     override fun onSupportNavigateUp(): Boolean {

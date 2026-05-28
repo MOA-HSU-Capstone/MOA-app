@@ -12,14 +12,19 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.example.a20260310.data.local.MeetingLocalFilesPrefs
+import com.example.a20260310.data.local.PendingSummaryPollingStore
 import com.example.a20260310.data.model.Meeting
+import com.example.a20260310.data.poll.SummaryNotReadyException
+import com.example.a20260310.data.poll.SummaryPoller
 import com.example.a20260310.data.model.MeetingDraft
 import com.example.a20260310.data.model.MeetingStatus
 import com.example.a20260310.data.model.MinutesUiMapper
 import com.example.a20260310.data.model.MinutesUiModel
 import com.example.a20260310.data.remote.ApiErrorParser
 import com.example.a20260310.data.repository.MeetingRepository
+import com.example.a20260310.worker.SummaryPollScheduler
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -68,6 +73,8 @@ data class SummaryProgressState(
     val summarySucceeded: Boolean,
     val waitingCount: Int = 0,
     val completionMode: SummaryCompletionMode = SummaryCompletionMode.NONE,
+    /** UI 실시간 대기 종료 후, WorkManager가 백그라운드에서 계속 조회 중 */
+    val isBackgroundPending: Boolean = false,
 ) {
     companion object {
         fun idle(): SummaryProgressState =
@@ -164,7 +171,94 @@ class MeetingSessionViewModel(
     private var runningJob: QueuedSummaryJob? = null
     private var queueProcessorRunning = false
 
+    @Volatile
+    private var pipelineDeferredToBackground = false
+
+    init {
+        viewModelScope.launch {
+            resumePendingBackgroundPolls()
+            refreshBackgroundSummaryResults()
+        }
+    }
+
     private fun uiMeetingTitle(): String = draft.title.trim().ifBlank { "회의" }
+
+    fun refreshBackgroundSummaryResults() {
+        viewModelScope.launch {
+            val completed = PendingSummaryPollingStore.consumeCompleted(getApplication())
+            completed.forEach { item ->
+                onBackgroundSummaryReady(item.meetingId, item.meetingTitle)
+            }
+            val failed = PendingSummaryPollingStore.consumeFailed(getApplication())
+            failed.forEach { item ->
+                onBackgroundSummaryFailed(item.meetingId, item.meetingTitle, item.errorMessage)
+            }
+        }
+    }
+
+    private suspend fun resumePendingBackgroundPolls() {
+        val pending = PendingSummaryPollingStore.readPending(getApplication())
+        pending.forEach { job ->
+            SummaryPollScheduler.enqueue(
+                getApplication(),
+                job.meetingId,
+                job.meetingTitle,
+                attempt = 0,
+            )
+        }
+    }
+
+    private fun onBackgroundSummaryReady(meetingId: Int, meetingTitle: String) {
+        _currentBackendMeetingId.postValue(meetingId)
+        patchCurrentMeeting {
+            it.copy(status = MeetingStatus.COMPLETED)
+        }
+        _summaryProgress.postValue(
+            SummaryProgressState(
+                meetingTitle = meetingTitle.ifBlank { "회의" },
+                progressPercent = 100,
+                etaSecondsRemaining = 0L,
+                isRunning = false,
+                isComplete = true,
+                phase = SummaryPanelPhase.COMPLETED,
+                errorMessage = null,
+                summarySucceeded = true,
+                waitingCount = waitingCountSnapshot(),
+                completionMode = SummaryCompletionMode.REAL_SUCCESS,
+                isBackgroundPending = false,
+            ),
+        )
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) { repository.getSummary(meetingId) }
+            }.onSuccess { detail ->
+                val snapshot = draft
+                val ui = MinutesUiMapper.build(snapshot, "", detail)
+                _minutes.postValue(ui)
+            }
+        }
+    }
+
+    private fun onBackgroundSummaryFailed(meetingId: Int, meetingTitle: String, errorMessage: String) {
+        _currentBackendMeetingId.postValue(meetingId)
+        patchCurrentMeeting { it.copy(status = MeetingStatus.FAILED) }
+        _pipelineError.postValue(errorMessage)
+        _summaryProgress.postValue(
+            SummaryProgressState(
+                meetingTitle = meetingTitle.ifBlank { "회의" },
+                progressPercent = 100,
+                etaSecondsRemaining = 0L,
+                isRunning = false,
+                isComplete = true,
+                phase = SummaryPanelPhase.COMPLETED,
+                errorMessage = errorMessage,
+                summarySucceeded = false,
+                waitingCount = waitingCountSnapshot(),
+                completionMode = SummaryCompletionMode.NONE,
+                isBackgroundPending = false,
+            ),
+        )
+    }
 
     fun setSummaryPanelExpanded(expanded: Boolean) {
         _summaryPanelExpanded.value = expanded
@@ -438,6 +532,7 @@ class MeetingSessionViewModel(
                 }
             }
 
+        pipelineDeferredToBackground = false
         try {
             performSummarizePipeline(job.draft, job.files)
             ticker.cancel()
@@ -445,6 +540,8 @@ class MeetingSessionViewModel(
             ticker.cancel()
             _isPipelineRunning.postValue(false)
 
+            val deferred = pipelineDeferredToBackground
+            pipelineDeferredToBackground = false
             val mins = _minutes.value
             if (mins != null) {
                 _summaryProgress.postValue(
@@ -459,6 +556,23 @@ class MeetingSessionViewModel(
                         summarySucceeded = true,
                         waitingCount = waitingCountSnapshot(),
                         completionMode = SummaryCompletionMode.REAL_SUCCESS,
+                        isBackgroundPending = false,
+                    ),
+                )
+            } else if (deferred) {
+                _summaryProgress.postValue(
+                    SummaryProgressState(
+                        meetingTitle = job.meetingTitle,
+                        progressPercent = 95,
+                        etaSecondsRemaining = null,
+                        isRunning = false,
+                        isComplete = false,
+                        phase = SummaryPanelPhase.RUNNING,
+                        errorMessage = null,
+                        summarySucceeded = true,
+                        waitingCount = waitingCountSnapshot(),
+                        completionMode = SummaryCompletionMode.NONE,
+                        isBackgroundPending = true,
                     ),
                 )
             } else {
@@ -474,6 +588,7 @@ class MeetingSessionViewModel(
                         summarySucceeded = false,
                         waitingCount = waitingCountSnapshot(),
                         completionMode = SummaryCompletionMode.NONE,
+                        isBackgroundPending = false,
                     ),
                 )
             }
@@ -481,8 +596,34 @@ class MeetingSessionViewModel(
     }
 
     private fun estimateDurationMs(files: List<SelectedSourceFile>): Long {
-        var totalAudioDurationMs = 0L
+        val totalAudioDurationMs = totalAudioDurationMs(files)
         var nonAudioCount = 0
+        for (f in files) {
+            when (f.type) {
+                SelectedSourceFile.Type.AUDIO_RECORD,
+                SelectedSourceFile.Type.AUDIO_UPLOAD -> Unit
+                SelectedSourceFile.Type.IMAGE,
+                SelectedSourceFile.Type.DOCUMENT -> {
+                    nonAudioCount += 1
+                }
+            }
+        }
+        val audioFactor = when {
+            totalAudioDurationMs >= 3_600_000L -> 0.28
+            totalAudioDurationMs >= 1_800_000L -> 0.24
+            totalAudioDurationMs >= 600_000L -> 0.20
+            else -> 0.16
+        }
+        val fromAudio = (totalAudioDurationMs * audioFactor).toLong()
+        val fromNonAudio = nonAudioCount * 4_000L
+        // Include fixed backend post-processing overhead to reduce long waits at 95%.
+        val backendFinalizeBufferMs = 20_000L
+        val estimate = fromAudio + fromNonAudio + backendFinalizeBufferMs
+        return estimate.coerceAtLeast(20_000L)
+    }
+
+    private fun totalAudioDurationMs(files: List<SelectedSourceFile>): Long {
+        var totalAudioDurationMs = 0L
         for (f in files) {
             when (f.type) {
                 SelectedSourceFile.Type.AUDIO_RECORD,
@@ -497,21 +638,10 @@ class MeetingSessionViewModel(
                         totalAudioDurationMs += mediaDurationMs(p)
                     }
                 }
-                SelectedSourceFile.Type.IMAGE,
-                SelectedSourceFile.Type.DOCUMENT -> {
-                    nonAudioCount += 1
-                }
+                else -> Unit
             }
         }
-        val audioFactor = when {
-            totalAudioDurationMs >= 3_600_000L -> 0.20
-            totalAudioDurationMs >= 1_800_000L -> 0.15
-            else -> 0.10
-        }
-        val fromAudio = (totalAudioDurationMs * audioFactor).toLong()
-        val fromNonAudio = nonAudioCount * 3_000L
-        val estimate = fromAudio + fromNonAudio
-        return estimate.coerceAtLeast(10_000L)
+        return totalAudioDurationMs
     }
 
     private fun mediaDurationMs(path: String): Long {
@@ -553,14 +683,20 @@ class MeetingSessionViewModel(
 
             val created = try {
                 withContext(Dispatchers.IO) {
-                    repository.createMeeting(
-                        title = snapshot.title.ifBlank { "무제 회의" },
-                        folderId = snapshot.folderId,
-                        meetingDate = serverDate,
-                        meetingTime = serverTime,
-                        attendees = snapshot.participantList(),
-                        description = null,
-                    )
+                    SummaryPoller.retryOnTransientNetwork(
+                        onRetry = { attempt, e ->
+                            Log.w("MOA", "createMeeting transient retry attempt=$attempt", e)
+                        },
+                    ) {
+                        repository.createMeeting(
+                            title = snapshot.title.ifBlank { "무제 회의" },
+                            folderId = snapshot.folderId,
+                            meetingDate = serverDate,
+                            meetingTime = serverTime,
+                            attendees = snapshot.participantList(),
+                            description = null,
+                        )
+                    }
                 }
             } catch (e: HttpException) {
                 val errorText = try {
@@ -614,7 +750,11 @@ class MeetingSessionViewModel(
                                             (segs.map { File(it) } + local)
                                                 .filter { it.isFile && it.length() > 0L }
                                                 .distinctBy { it.absolutePath }
-                                        if (ordered.isEmpty()) null else mergeAudioSegmentsToWav(ordered)
+                                        when {
+                                            ordered.isEmpty() -> null
+                                            ordered.size == 1 -> ordered.first()
+                                            else -> mergeAudioSegmentsToWav(ordered)
+                                        }
                                     }
                                     else -> local.takeIf { it.isFile && it.length() > 0L }
                                 }
@@ -636,9 +776,32 @@ class MeetingSessionViewModel(
                 try {
                     if (audioFilesToUpload.isNotEmpty()) {
                         Log.d("MOA", "uploadAudioFiles start count=${audioFilesToUpload.size}")
-                        val transcript = repository.uploadAudioFiles(created.id, audioFilesToUpload)
-                        Log.d("MOA", "uploadAudioFiles success")
-                        latestTranscriptText = transcript.content
+                        try {
+                            val transcript =
+                                SummaryPoller.retryOnTransientNetwork(
+                                    onRetry = { attempt, e ->
+                                        Log.w(
+                                            "MOA",
+                                            "uploadAudioFiles transient retry attempt=$attempt",
+                                            e,
+                                        )
+                                    },
+                                ) {
+                                    repository.uploadAudioFiles(created.id, audioFilesToUpload)
+                                }
+                            Log.d("MOA", "uploadAudioFiles success")
+                            latestTranscriptText = transcript.content
+                        } catch (e: Throwable) {
+                            if (SummaryPoller.isTransientNetworkError(e)) {
+                                Log.w(
+                                    "MOA",
+                                    "uploadAudioFiles timed out; server may still be processing meetingId=${created.id}",
+                                    e,
+                                )
+                            } else {
+                                throw e
+                            }
+                        }
                     }
                     if (imageFilesToUpload.isNotEmpty()) {
                         val imageResponses =
@@ -660,32 +823,52 @@ class MeetingSessionViewModel(
             }
 
             Log.d("MOA", "generateSummary start")
-            withContext(Dispatchers.IO) {
-                repository.generateSummary(created.id)
-            }
-            Log.d("MOA", "generateSummary success")
-
-            Log.d("MOA", "getSummary start")
-            val summaryDetail =
+            try {
                 withContext(Dispatchers.IO) {
-                    repository.getSummary(created.id)
+                    SummaryPoller.retryOnTransientNetwork(
+                        onRetry = { attempt, e ->
+                            Log.w("MOA", "generateSummary transient retry attempt=$attempt", e)
+                        },
+                    ) {
+                        repository.generateSummary(created.id)
+                    }
                 }
-            Log.d("MOA", "getSummary success")
-
-            val ui = MinutesUiMapper.build(snapshot, latestTranscriptText, summaryDetail)
-
-            patchCurrentMeeting {
-                it.copy(
-                    status = MeetingStatus.COMPLETED,
-                    serverFilePaths = uploadedServerPaths,
-                    summary = ui.summary,
-                )
+                Log.d("MOA", "generateSummary success")
+            } catch (e: Throwable) {
+                if (SummaryPoller.isTransientNetworkError(e)) {
+                    Log.w(
+                        "MOA",
+                        "generateSummary timed out; continue polling getSummary meetingId=${created.id}",
+                        e,
+                    )
+                } else {
+                    throw e
+                }
             }
-            _minutes.value = ui
-        } catch (e: Exception) {
-            Log.e("MOA", "performSummarizePipeline failed", e)
-            val message = buildPipelineErrorMessage(e)
 
+            completePipelineWithSummaryPoll(
+                meetingId = created.id,
+                snapshot = snapshot,
+                selected = selected,
+                latestTranscriptText = latestTranscriptText,
+                uploadedServerPaths = uploadedServerPaths,
+            )
+        } catch (e: Throwable) {
+            if (e is CancellationException) throw e
+            Log.e("MOA", "performSummarizePipeline failed", e)
+
+            val meetingId = _currentBackendMeetingId.value
+            if (SummaryPoller.isTransientNetworkError(e) && meetingId != null && meetingId > 0) {
+                Log.w(
+                    "MOA",
+                    "transient network error; defer to background meetingId=$meetingId",
+                    e,
+                )
+                deferToBackgroundPolling(meetingId, snapshot.title.ifBlank { "무제 회의" })
+                return
+            }
+
+            val message = buildPipelineErrorMessage(e)
             Log.e("MOA", "pipelineError=$message")
             _pipelineError.value = message
             patchCurrentMeeting {
@@ -698,13 +881,103 @@ class MeetingSessionViewModel(
         }
     }
 
-    private fun buildPipelineErrorMessage(error: Exception): String {
+    /**
+     * 업로드/요약 API가 타임아웃돼도 서버 처리는 계속될 수 있으므로 getSummary 폴링으로 대기한다.
+     * UI 상한 초과 시 백그라운드 WorkManager로 넘긴다.
+     */
+    private suspend fun completePipelineWithSummaryPoll(
+        meetingId: Int,
+        snapshot: MeetingDraft,
+        selected: List<SelectedSourceFile>,
+        latestTranscriptText: String,
+        uploadedServerPaths: List<String>,
+    ) {
+        Log.d("MOA", "getSummary start meetingId=$meetingId")
+        val summaryDetail =
+            try {
+                waitForSummaryReadyWithUiLimit(meetingId, selected)
+            } catch (e: SummaryNotReadyException) {
+                Log.w(
+                    "MOA",
+                    "getSummary ui wait limit reached; defer to background meetingId=$meetingId",
+                )
+                deferToBackgroundPolling(meetingId, snapshot.title.ifBlank { "무제 회의" })
+                return
+            } catch (e: Throwable) {
+                if (SummaryPoller.isTransientNetworkError(e)) {
+                    Log.w(
+                        "MOA",
+                        "getSummary transient error; defer to background meetingId=$meetingId",
+                        e,
+                    )
+                    deferToBackgroundPolling(meetingId, snapshot.title.ifBlank { "무제 회의" })
+                    return
+                }
+                throw e
+            }
+        Log.d("MOA", "getSummary success meetingId=$meetingId")
+
+        val ui = MinutesUiMapper.build(snapshot, latestTranscriptText, summaryDetail)
+        patchCurrentMeeting {
+            it.copy(
+                status = MeetingStatus.COMPLETED,
+                serverFilePaths = uploadedServerPaths,
+                summary = ui.summary,
+            )
+        }
+        _minutes.value = ui
+    }
+
+    /**
+     * 화면 실시간 대기 상한(실패 아님). STT는 녹음 길이만큼 오래 걸릴 수 있어 15분 캡 제거.
+     * 초과 시 백그라운드 WorkManager 폴링으로 넘긴다.
+     */
+    private fun uiPollMaxWaitMs(files: List<SelectedSourceFile>): Long {
+        val audioMs = totalAudioDurationMs(files)
+        val fromAudio = (audioMs * 0.6).toLong()
+        val floor = 5 * 60_000L
+        val ceiling = 60 * 60_000L
+        return (fromAudio + 3 * 60_000L).coerceIn(floor, ceiling)
+    }
+
+    private suspend fun waitForSummaryReadyWithUiLimit(
+        meetingId: Int,
+        files: List<SelectedSourceFile>,
+    ): com.example.a20260310.data.remote.dto.SummaryDetailResponseDto =
+        withContext(Dispatchers.IO) {
+            val uiMaxWaitMs = uiPollMaxWaitMs(files)
+            SummaryPoller.pollUntilReady(
+                repository = repository,
+                meetingId = meetingId,
+                maxWaitMs = uiMaxWaitMs,
+                onNotReady = { attempt, elapsed ->
+                    Log.w(
+                        "MOA",
+                        "getSummary not-ready meetingId=$meetingId attempt=$attempt elapsedMs=$elapsed uiMaxWaitMs=$uiMaxWaitMs",
+                    )
+                },
+            )
+        }
+
+    private fun deferToBackgroundPolling(meetingId: Int, meetingTitle: String) {
+        pipelineDeferredToBackground = true
+        _pipelineError.value = null
+        _currentBackendMeetingId.postValue(meetingId)
+        patchCurrentMeeting { it.copy(status = MeetingStatus.PROCESSING) }
+        SummaryPollScheduler.scheduleInitial(getApplication(), meetingId, meetingTitle)
+        Log.d("MOA", "deferred summary polling to WorkManager meetingId=$meetingId")
+    }
+
+    private fun buildPipelineErrorMessage(error: Throwable): String {
         if (error is HttpException) {
             return ApiErrorParser.httpMessage(
                 error = error,
                 fallback = "서버 요청 형식 검증에 실패했습니다.",
                 includeCode = true,
             )
+        }
+        if (error is OutOfMemoryError) {
+            return "대용량 오디오 처리 중 메모리가 부족했습니다. 파일을 분할해서 다시 시도해 주세요."
         }
         return error.message?.takeIf { it.isNotBlank() } ?: "요약 요청 중 오류가 발생했습니다."
     }
@@ -870,9 +1143,12 @@ class MeetingSessionViewModel(
                                 if (outputBuffer != null && info.size > 0) {
                                     outputBuffer.position(info.offset)
                                     outputBuffer.limit(info.offset + info.size)
-                                    val chunk = ByteArray(info.size)
-                                    outputBuffer.get(chunk)
-                                    fos.write(chunk)
+                                    val tmp = ByteArray(min(64 * 1024, info.size))
+                                    while (outputBuffer.hasRemaining()) {
+                                        val toRead = min(tmp.size, outputBuffer.remaining())
+                                        outputBuffer.get(tmp, 0, toRead)
+                                        fos.write(tmp, 0, toRead)
+                                    }
                                     totalPcmBytes += info.size.toLong()
                                 }
                                 codec.releaseOutputBuffer(outputIndex, false)

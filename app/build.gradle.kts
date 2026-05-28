@@ -78,6 +78,7 @@ dependencies {
     implementation(libs.okhttp.logging)
     implementation(libs.gson)
     implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.play.services.mlkit.document.scanner)
     implementation(libs.filament.android)
     testImplementation(libs.junit)

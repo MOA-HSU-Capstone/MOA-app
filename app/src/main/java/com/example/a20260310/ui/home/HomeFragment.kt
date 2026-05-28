@@ -96,9 +96,10 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             val state = sessionViewModel.summaryProgress.value ?: SummaryProgressState.idle()
             val expanded = sessionViewModel.summaryPanelExpanded.value == true
             val runningNow = state.isRunning && !state.isComplete
+            val backgroundPending = state.isBackgroundPending && !state.isComplete
             val waitingOnly = !state.isRunning && !state.isComplete && state.waitingCount > 0
             val complete = state.isComplete
-            val show = runningNow || complete || waitingOnly
+            val show = runningNow || complete || waitingOnly || backgroundPending
 
             if (animateLayout && show) {
                 TransitionManager.beginDelayedTransition(homeRoot, ChangeBounds())
@@ -123,15 +124,17 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             summaryPanelCollapsedInner.isVisible = !expanded
             summaryPanelExpandedInner.isVisible = expanded
 
-            val workingHeader = expanded && !complete && (runningNow || waitingOnly)
+            val workingHeader = expanded && !complete && (runningNow || waitingOnly || backgroundPending)
             panelExpandedTitle.isVisible = workingHeader
             panelExpandedCollapseChevron.isVisible = workingHeader
-            panelExpandedEta.isVisible = expanded && runningNow
+            panelExpandedEta.isVisible = expanded && (runningNow || backgroundPending)
             if (expanded && runningNow) {
                 panelExpandedEta.text = formatEtaShort(state.etaSecondsRemaining)
+            } else if (expanded && backgroundPending) {
+                panelExpandedEta.text = getString(R.string.summary_panel_background_pending)
             }
 
-            groupSummaryExpandedProgress.isVisible = expanded && runningNow
+            groupSummaryExpandedProgress.isVisible = expanded && (runningNow || backgroundPending)
             panelExpandedCompleteInner.isVisible = expanded && complete
 
             val showQueueBanner = expanded && !complete && state.waitingCount > 0
@@ -146,16 +149,19 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             panelProgressBar.setProgressCompat(state.progressPercent.coerceIn(0, 100), true)
             panelExpandedPercent.text = "${state.progressPercent}%"
 
-            panelCollapsedCircular.isVisible = !expanded && runningNow
-            if (!expanded && runningNow) {
+            panelCollapsedCircular.isVisible = !expanded && (runningNow || backgroundPending)
+            if (!expanded && (runningNow || backgroundPending)) {
                 panelCollapsedCircular.setProgressCompat(state.progressPercent.coerceIn(0, 100), true)
             }
 
             val showCollapsedQueueHint =
                 !expanded && !complete && state.waitingCount > 0 &&
                         (runningNow || waitingOnly)
-            panelCollapsedSubtitle.isVisible = showCollapsedQueueHint
-            if (showCollapsedQueueHint) {
+            val showCollapsedBackgroundHint = !expanded && backgroundPending
+            panelCollapsedSubtitle.isVisible = showCollapsedQueueHint || showCollapsedBackgroundHint
+            if (showCollapsedBackgroundHint) {
+                panelCollapsedSubtitle.text = getString(R.string.summary_panel_background_pending_short)
+            } else if (showCollapsedQueueHint) {
                 panelCollapsedSubtitle.text =
                     getString(R.string.summary_panel_queue_banner, state.waitingCount)
             }
@@ -230,7 +236,7 @@ class HomeFragment : Fragment(R.layout.fragment_home) {
             if (state.isRunning) {
                 completionToastShown = false
             }
-            if (state.isComplete && isResumed && !completionToastShown) {
+            if (state.isComplete && state.summarySucceeded && isResumed && !completionToastShown) {
                 completionToastShown = true
                 Toast.makeText(
                     requireContext(),
