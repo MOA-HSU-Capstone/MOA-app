@@ -224,7 +224,7 @@ def _upload_audio(file_path: str, timeout: int = 30) -> str:
 
 def _poll_result(
     task_id: str,
-    result_timeout: int = 180,
+    result_timeout: int = 300,
     poll_interval: float = 2.0,
 ) -> str:
     """
@@ -236,7 +236,7 @@ def _poll_result(
         업로드 후 받은 작업 ID
 
     result_timeout : int
-        전체 결과 대기 제한 시간(초)
+        전체 결과 대기 제한 시간(초), 기본값 300초(5분)
 
     poll_interval : float
         조회 간격(초)
@@ -306,7 +306,7 @@ def _poll_result(
 def request_stt(
     file_path: str,
     upload_timeout: int = 30,
-    result_timeout: int = 180,
+    result_timeout: int = 300,
     poll_interval: float = 2.0,
 ) -> str:
     """
@@ -328,7 +328,7 @@ def request_stt(
         업로드 요청 타임아웃(초)
 
     result_timeout : int
-        결과 대기 최대 시간(초)
+        결과 대기 최대 시간(초), 기본값 300초(5분)
 
     poll_interval : float
         결과 조회 간격(초)
@@ -356,7 +356,7 @@ def request_stt(
 def transcribe_audio_file(
     file_path: str,
     upload_timeout: int = 30,
-    result_timeout: int = 180,
+    result_timeout: int = 300,
     poll_interval: float = 2.0,
 ) -> str:
     """
