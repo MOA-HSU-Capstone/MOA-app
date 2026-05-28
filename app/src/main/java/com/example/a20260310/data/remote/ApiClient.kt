@@ -50,8 +50,8 @@ object ApiClient {
             }
             .addInterceptor(logging)
             .connectTimeout(120, TimeUnit.SECONDS)
-            .readTimeout(120, TimeUnit.SECONDS)
-            .writeTimeout(120, TimeUnit.SECONDS)
+            .readTimeout(10, TimeUnit.MINUTES)
+            .writeTimeout(10, TimeUnit.MINUTES)
             .build()
 
         Retrofit.Builder()
