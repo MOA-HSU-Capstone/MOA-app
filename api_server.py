@@ -74,7 +74,7 @@ def run_stt(task_id, file_path):
             vad_filter=True,
             vad_parameters=dict(min_silence_duration_ms=500),
             condition_on_previous_text=False,
-            initial_prompt="이 회의는 AI 회의록 시스템 캡스톤 디자인 팀프로젝트입니다."
+            initial_prompt="이 회의는 AI 회의록 시스템입니다. 영단어는 발음대로 적지 말고 영어 원문 그대로 표기하세요."
         )
 
         result_text = " ".join(
