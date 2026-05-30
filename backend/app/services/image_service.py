@@ -1,15 +1,16 @@
 """
 image_service.py
 
-이미지 처리 서비스 계층
+이미지/PDF 처리 서비스 계층
 
 역할
-- 업로드된 이미지 파일 저장
+- 업로드된 이미지 또는 PDF 파일 저장
 - 이미지 전처리
+- PDF 파일은 페이지별 이미지로 변환
 - OCR 수행
 - 화이트보드 이미지는 추가 분석
 - image DB 저장
-- 여러 이미지 파일 처리
+- 여러 이미지/PDF 파일 처리
 
 흐름
 upload_router
@@ -20,7 +21,7 @@ meeting_repository
     ↓
 file_manager
     ↓
-preprocess
+preprocess / pdf_converter
     ↓
 image_ocr
     ↓
@@ -35,9 +36,19 @@ uploads/
             └─ {meeting_id}/
                 ├─ audio/
                 └─ images/
+
+PDF 처리 방식
+-------------
+PDF 원본 저장
+→ PDF를 페이지별 PNG로 변환
+→ 각 페이지 이미지 OCR
+→ OCR 결과를 합쳐서 image 테이블에 1개 row로 저장
 """
 
 from __future__ import annotations
+
+import mimetypes
+from pathlib import Path
 
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
@@ -48,58 +59,163 @@ from repositories.image_repository import create_image
 from repositories.meeting_repository import get_meeting_by_id_and_user_id
 from schemas.image_schema import ImageCreate, ImageResponse, ImageUploadResponse
 from storage.file_manager import save_image_file
+from utils.pdf_converter import convert_pdf_to_images
 from utils.preprocess import preprocess_image_file
 
 
-def _process_single_image(
+def _is_pdf_file(file_path: str, upload_file: UploadFile | None = None) -> bool:
+    """
+    업로드된 파일이 PDF인지 확인한다.
+
+    확인 기준
+    --------
+    1. UploadFile.content_type
+    2. 확장자 / mimetype
+    3. 파일 헤더(%PDF)
+    """
+
+    if upload_file is not None and upload_file.content_type == "application/pdf":
+        return True
+
+    mime_type, _ = mimetypes.guess_type(file_path)
+
+    if mime_type == "application/pdf":
+        return True
+
+    if Path(file_path).suffix.lower() == ".pdf":
+        return True
+
+    try:
+        with open(file_path, "rb") as file:
+            header = file.read(4)
+
+        return header == b"%PDF"
+
+    except FileNotFoundError:
+        raise
+
+    except Exception:
+        return False
+
+
+def _process_pdf_file(
     db: Session,
     meeting_id: int,
-    upload_file: UploadFile,
-    current_user: User,
-    image_type: str = "image",
+    saved_path: str,
+    image_type: str,
 ) -> ImageUploadResponse:
     """
-    이미지 파일 1개를 처리해서 image DB에 저장한다.
-
-    이 함수는 내부 재사용용 함수이다.
+    PDF 파일 1개를 처리한다.
 
     동작 방식
     --------
-    1. 파일명 확인
-    2. image_type 검증
-    3. 현재 로그인한 사용자 기준 폴더에 이미지 파일 저장
-    4. 이미지 전처리
-    5. OCR / 화이트보드 분석 수행
-    6. OCR / 분석 결과 정리
-    7. image DB 저장
-    8. ImageUploadResponse 반환
+    1. PDF를 페이지별 PNG 이미지로 변환
+    2. 각 페이지 이미지를 전처리
+    3. 각 페이지 이미지 OCR 수행
+    4. OCR/분석 결과를 합쳐서 image 테이블에 1개 row로 저장
     """
 
-    # 1. 파일명 확인
-    if not upload_file.filename:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="파일명이 비어 있는 이미지 파일이 포함되어 있습니다.",
+    try:
+        pdf_output_dir = str(Path(saved_path).with_suffix(""))
+
+        page_image_paths = convert_pdf_to_images(
+            pdf_path=saved_path,
+            output_dir=pdf_output_dir,
+            dpi=200,
         )
 
-    # 2. image_type 검증
-    if image_type not in {"image", "whiteboard"}:
+    except FileNotFoundError as e:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="image_type은 'image' 또는 'whiteboard'만 가능합니다.",
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"PDF 파일을 찾을 수 없습니다: {str(e)}",
         )
 
-    # 3. 이미지 파일 저장
-    #
-    # 저장 예시:
-    # uploads/users/{user_id}/meetings/{meeting_id}/images/{uuid}.png
-    saved_path = save_image_file(
-        upload_file=upload_file,
-        user_id=current_user.id,
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=(
+                "PDF를 이미지로 변환하는 중 오류가 발생했습니다. "
+                "서버에 poppler-utils가 설치되어 있는지 확인하세요. "
+                f"원인: {str(e)}"
+            ),
+        )
+
+    if not page_image_paths:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="PDF에서 변환된 페이지 이미지가 없습니다.",
+        )
+
+    page_ocr_texts: list[str] = []
+    page_analysis_texts: list[str] = []
+
+    for page_index, page_image_path in enumerate(page_image_paths, start=1):
+        try:
+            processed_page_path = preprocess_image_file(page_image_path)
+
+            image_result = process_image_by_type(
+                image_path=processed_page_path,
+                image_type=image_type,
+            )
+
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"PDF {page_index}페이지 OCR 처리 중 오류가 발생했습니다: {str(e)}",
+            )
+
+        ocr_text = (image_result.get("ocr_text") or "").strip()
+        analysis_text = (image_result.get("analysis_text") or "").strip()
+
+        if ocr_text:
+            page_ocr_texts.append(
+                f"[PDF {page_index}페이지 OCR]\n{ocr_text}"
+            )
+
+        if analysis_text:
+            page_analysis_texts.append(
+                f"[PDF {page_index}페이지 분석]\n{analysis_text}"
+            )
+
+    merged_ocr_text = "\n\n".join(page_ocr_texts).strip()
+    merged_analysis_text = "\n\n".join(page_analysis_texts).strip()
+
+    image_data = ImageCreate(
         meeting_id=meeting_id,
+        file_path=saved_path,
+        image_type="pdf",
+        ocr_text=merged_ocr_text,
+        analysis_text=merged_analysis_text,
     )
 
-    # 4. 이미지 전처리
+    image = create_image(db, image_data)
+
+    return ImageUploadResponse(
+        meeting_id=image.meeting_id,
+        file_path=image.file_path,
+        image_type=image.image_type,
+        ocr_text=image.ocr_text,
+        analysis_text=image.analysis_text,
+    )
+
+
+def _process_image_file(
+    db: Session,
+    meeting_id: int,
+    saved_path: str,
+    image_type: str,
+) -> ImageUploadResponse:
+    """
+    일반 이미지 파일 1개를 처리한다.
+
+    동작 방식
+    --------
+    1. 이미지 전처리
+    2. OCR / 화이트보드 분석 수행
+    3. image DB 저장
+    4. ImageUploadResponse 반환
+    """
+
     try:
         processed_path = preprocess_image_file(saved_path)
 
@@ -115,7 +231,6 @@ def _process_single_image(
             detail=f"이미지 전처리 중 오류가 발생했습니다: {str(e)}",
         )
 
-    # 5. 이미지 종류에 따라 OCR / 분석 수행
     try:
         image_result = process_image_by_type(
             image_path=processed_path,
@@ -128,11 +243,9 @@ def _process_single_image(
             detail=f"이미지 OCR 처리 중 오류가 발생했습니다: {str(e)}",
         )
 
-    # 6. OCR / 분석 결과 정리
     ocr_text = (image_result.get("ocr_text") or "").strip()
     analysis_text = (image_result.get("analysis_text") or "").strip()
 
-    # 7. DB 저장용 스키마 생성
     image_data = ImageCreate(
         meeting_id=meeting_id,
         file_path=processed_path,
@@ -141,16 +254,72 @@ def _process_single_image(
         analysis_text=analysis_text,
     )
 
-    # 8. image DB 저장
     image = create_image(db, image_data)
 
-    # 9. 업로드 응답 반환
     return ImageUploadResponse(
         meeting_id=image.meeting_id,
         file_path=image.file_path,
         image_type=image.image_type,
         ocr_text=image.ocr_text,
         analysis_text=image.analysis_text,
+    )
+
+
+def _process_single_image(
+    db: Session,
+    meeting_id: int,
+    upload_file: UploadFile,
+    current_user: User,
+    image_type: str = "image",
+) -> ImageUploadResponse:
+    """
+    이미지 또는 PDF 파일 1개를 처리해서 image DB에 저장한다.
+
+    이미지인 경우
+    ------------
+    저장 → 전처리 → OCR → DB 저장
+
+    PDF인 경우
+    ---------
+    저장 → 페이지별 이미지 변환 → 페이지별 OCR → 결과 합치기 → DB 저장
+    """
+
+    if not upload_file.filename:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="파일명이 비어 있는 파일이 포함되어 있습니다.",
+        )
+
+    if image_type not in {"image", "whiteboard"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="image_type은 'image' 또는 'whiteboard'만 가능합니다.",
+        )
+
+    saved_path = save_image_file(
+        upload_file=upload_file,
+        user_id=current_user.id,
+        meeting_id=meeting_id,
+    )
+
+    is_pdf = _is_pdf_file(
+        file_path=saved_path,
+        upload_file=upload_file,
+    )
+
+    if is_pdf:
+        return _process_pdf_file(
+            db=db,
+            meeting_id=meeting_id,
+            saved_path=saved_path,
+            image_type=image_type,
+        )
+
+    return _process_image_file(
+        db=db,
+        meeting_id=meeting_id,
+        saved_path=saved_path,
+        image_type=image_type,
     )
 
 
@@ -162,19 +331,18 @@ def process_uploaded_image(
     image_type: str = "image",
 ) -> ImageUploadResponse:
     """
-    이미지 파일 1개 업로드 처리 함수.
+    이미지/PDF 파일 1개 업로드 처리 함수.
 
     기존 단일 이미지 업로드 API가 필요할 수 있으므로 유지한다.
 
     동작 방식
     --------
     1. 현재 로그인한 사용자의 회의인지 확인
-    2. 이미지 파일 1개 처리
+    2. 이미지 또는 PDF 파일 1개 처리
     3. image DB 저장
     4. ImageUploadResponse 반환
     """
 
-    # 1. 현재 로그인한 사용자의 회의인지 확인
     meeting = get_meeting_by_id_and_user_id(
         db=db,
         meeting_id=meeting_id,
@@ -187,7 +355,6 @@ def process_uploaded_image(
             detail="해당 회의를 찾을 수 없습니다.",
         )
 
-    # 2. 이미지 파일 1개 처리
     return _process_single_image(
         db=db,
         meeting_id=meeting_id,
@@ -205,50 +372,25 @@ def process_uploaded_image_files(
     image_type: str = "image",
 ) -> list[ImageUploadResponse]:
     """
-    여러 이미지 파일을 순서대로 처리한다.
+    여러 이미지/PDF 파일을 순서대로 처리한다.
 
     역할
     ----
-    - upload_router에서 files: list[UploadFile]로 받은 이미지 목록을 처리
+    - upload_router에서 files: list[UploadFile]로 받은 파일 목록을 처리
     - 현재 로그인한 사용자의 회의인지 확인
-    - 각 이미지 파일을 사용자/회의별 폴더에 저장
-    - 각 이미지 파일에 대해 OCR / 화이트보드 분석 수행
+    - 각 파일을 사용자/회의별 폴더에 저장
+    - 이미지 파일이면 기존 OCR 수행
+    - PDF 파일이면 페이지별 이미지 변환 후 OCR 수행
     - 이미지별 image DB 저장
     - ImageUploadResponse 목록 반환
-
-    Parameters
-    ----------
-    db : Session
-        SQLAlchemy DB 세션
-
-    meeting_id : int
-        이미지 파일들이 연결될 회의 ID
-
-    upload_files : list[UploadFile]
-        FastAPI UploadFile 객체 목록
-
-    current_user : User
-        현재 로그인한 사용자
-
-    image_type : str
-        이미지 종류
-        - image
-        - whiteboard
-
-    Returns
-    -------
-    list[ImageUploadResponse]
-        각 이미지 파일 처리 결과 목록
     """
 
-    # 1. 파일 목록 확인
     if not upload_files:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="업로드된 이미지 파일이 없습니다.",
+            detail="업로드된 이미지/PDF 파일이 없습니다.",
         )
 
-    # 2. 현재 로그인한 사용자의 회의인지 확인
     meeting = get_meeting_by_id_and_user_id(
         db=db,
         meeting_id=meeting_id,
@@ -261,17 +403,14 @@ def process_uploaded_image_files(
             detail="해당 회의를 찾을 수 없습니다.",
         )
 
-    # 3. image_type 검증
     if image_type not in {"image", "whiteboard"}:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="image_type은 'image' 또는 'whiteboard'만 가능합니다.",
         )
 
-    # 4. 각 이미지 처리 결과를 담을 리스트
     responses: list[ImageUploadResponse] = []
 
-    # 5. 여러 이미지 파일을 하나씩 처리
     for upload_file in upload_files:
         response = _process_single_image(
             db=db,
@@ -283,7 +422,6 @@ def process_uploaded_image_files(
 
         responses.append(response)
 
-    # 6. 여러 이미지 처리 결과 반환
     return responses
 
 
@@ -293,7 +431,7 @@ def get_meeting_images(
     current_user: User,
 ) -> list[ImageResponse]:
     """
-    특정 회의의 이미지 목록을 조회하는 서비스
+    특정 회의의 이미지/PDF OCR 결과 목록을 조회하는 서비스
 
     Parameters
     ----------
@@ -309,10 +447,9 @@ def get_meeting_images(
     Returns
     -------
     list[ImageResponse]
-        해당 회의에 연결된 이미지 목록
+        해당 회의에 연결된 이미지/PDF OCR 결과 목록
     """
 
-    # 1. 현재 로그인한 사용자의 회의인지 확인
     meeting = get_meeting_by_id_and_user_id(
         db=db,
         meeting_id=meeting_id,
@@ -325,7 +462,6 @@ def get_meeting_images(
             detail="해당 회의를 찾을 수 없습니다.",
         )
 
-    # 2. 이미지 목록 조회
     from repositories.image_repository import get_images_by_meeting_id
 
     images = get_images_by_meeting_id(db, meeting_id)
