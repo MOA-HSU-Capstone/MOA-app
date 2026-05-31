@@ -134,13 +134,19 @@ class MeetingRepository(
 
         val parts =
             validFiles.map { file ->
-                val mediaType = mediaTypeForUploadFile(file.name).toMediaTypeOrNull()
-                val body = file.asRequestBody(mediaType)
+                val mediaType = mediaTypeForUploadFile(file.name)
+                Log.d(TAG, "uploadImageFiles part name=files file=${file.name} mediaType=$mediaType")
+                val body = file.asRequestBody(mediaType.toMediaTypeOrNull())
                 MultipartBody.Part.createFormData("files", file.name, body)
             }
 
         val imageTypeBody = imageType.toRequestBody("text/plain".toMediaType())
-        return api.uploadImageFiles(meetingId, parts, imageTypeBody)
+        return try {
+            api.uploadImageFiles(meetingId, parts, imageTypeBody)
+        } catch (e: HttpException) {
+            Log.e(TAG, "uploadImageFiles failed code=${e.code()} path=/upload/image/$meetingId")
+            throw e
+        }
     }
 
     private fun mediaTypeForUploadFile(fileName: String): String {
