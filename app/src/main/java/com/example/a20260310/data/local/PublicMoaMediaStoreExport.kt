@@ -1,6 +1,7 @@
 package com.example.a20260310.data.local
 
 import android.Manifest
+import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.content.pm.PackageManager
@@ -10,6 +11,7 @@ import android.net.Uri
 import android.provider.MediaStore
 import android.util.Log
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import java.io.File
 import java.io.FileInputStream
 import java.io.IOException
@@ -43,6 +45,136 @@ object PublicMoaMediaStoreExport {
     /** 공용 문서 폴더 `Documents/MOA/` */
     val relativePathDocumentsMoa: String
         get() = "${Environment.DIRECTORY_DOCUMENTS}/MOA/"
+
+    /** 녹음·사진·문서 공용 MOA 폴더 구분 (기존 파일 조회용) */
+    enum class MoaPublicSlot {
+        RECORDINGS,
+        PICTURES,
+        DOCUMENTS,
+    }
+
+    /**
+     * 공용 MOA 경로에 [displayNames] 중 하나와 일치하는 항목이 있으면 content [Uri]를 반환한다.
+     * API 28 이하는 파일이 있으면 앱 캐시로 복사한 뒤 FileProvider Uri를 반환한다.
+     */
+    fun findExistingInMoaPublic(
+        context: Context,
+        slot: MoaPublicSlot,
+        displayNames: Collection<String>,
+    ): Uri? {
+        for (dn in displayNames) {
+            if (dn.isBlank()) continue
+            val found =
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    findExistingMediaStoreQ(context, slot, dn)
+                } else {
+                    legacyFindCopyToCacheUri(context, slot, dn)
+                }
+            if (found != null) return found
+        }
+        return null
+    }
+
+    fun findExistingInMoaPublic(context: Context, slot: MoaPublicSlot, displayName: String): Uri? =
+        findExistingInMoaPublic(context, slot, listOf(displayName))
+
+    private fun legacyDir(slot: MoaPublicSlot): File =
+        when (slot) {
+            MoaPublicSlot.RECORDINGS ->
+                File(Environment.getExternalStorageDirectory(), "Recordings${File.separator}MOA")
+            MoaPublicSlot.PICTURES ->
+                File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES), "MOA")
+            MoaPublicSlot.DOCUMENTS ->
+                File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "MOA")
+        }
+
+    private fun legacyFindCopyToCacheUri(context: Context, slot: MoaPublicSlot, displayName: String): Uri? {
+        val f = File(legacyDir(slot), displayName)
+        if (!f.isFile || !f.exists() || f.length() <= 0L) return null
+        val safeMirror =
+            displayName.replace(Regex("""[/\\:*?"<>|\u0000]"""), "_").trim().ifBlank { "file" }.take(120)
+        val out = File(context.cacheDir, "moa_public_mirror/${slot.name}/$safeMirror")
+        out.parentFile?.mkdirs()
+        return try {
+            f.inputStream().use { inp -> out.outputStream().use { o -> inp.copyTo(o) } }
+            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", out)
+        } catch (e: Exception) {
+            Log.w(TAG, "legacyFindCopyToCacheUri failed: $displayName", e)
+            null
+        }
+    }
+
+    private fun findExistingMediaStoreQ(context: Context, slot: MoaPublicSlot, displayName: String): Uri? {
+        val resolver = context.contentResolver
+        return when (slot) {
+            MoaPublicSlot.RECORDINGS -> {
+                queryMediaRowUri(resolver, MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, relativePathRecordingsMoa, displayName, null)
+                    ?: queryMediaRowUri(
+                        resolver,
+                        MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
+                        relativePathRecordingsMoa,
+                        displayName,
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            MediaStore.Files.FileColumns.MEDIA_TYPE_AUDIO
+                        } else {
+                            null
+                        },
+                    )
+            }
+            MoaPublicSlot.PICTURES -> {
+                queryMediaRowUri(resolver, MediaStore.Images.Media.EXTERNAL_CONTENT_URI, relativePathPicturesMoa, displayName, null)
+                    ?: queryMediaRowUri(
+                        resolver,
+                        MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
+                        relativePathPicturesMoa,
+                        displayName,
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            MediaStore.Files.FileColumns.MEDIA_TYPE_IMAGE
+                        } else {
+                            null
+                        },
+                    )
+            }
+            MoaPublicSlot.DOCUMENTS -> {
+                queryMediaRowUri(
+                    resolver,
+                    MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
+                    relativePathDocumentsMoa,
+                    displayName,
+                    null,
+                )
+            }
+        }
+    }
+
+    private fun queryMediaRowUri(
+        resolver: android.content.ContentResolver,
+        collection: Uri,
+        relativePath: String,
+        displayName: String,
+        filesMediaType: Int?,
+    ): Uri? {
+        val rp = if (relativePath.endsWith("/")) relativePath else "$relativePath/"
+        val projection = arrayOf(MediaStore.MediaColumns._ID)
+        val sb = StringBuilder()
+        sb.append("${MediaStore.MediaColumns.RELATIVE_PATH} = ? AND ${MediaStore.MediaColumns.DISPLAY_NAME} = ?")
+        val args = mutableListOf(rp, displayName)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            sb.append(" AND (${MediaStore.MediaColumns.IS_PENDING} = 0 OR ${MediaStore.MediaColumns.IS_PENDING} IS NULL)")
+        }
+        if (filesMediaType != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            sb.append(" AND ${MediaStore.Files.FileColumns.MEDIA_TYPE} = ?")
+            args.add(filesMediaType.toString())
+        }
+        return try {
+            resolver.query(collection, projection, sb.toString(), args.toTypedArray(), null)?.use { c ->
+                if (c.moveToFirst()) ContentUris.withAppendedId(collection, c.getLong(0)) else null
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "queryMediaRowUri failed: $displayName", e)
+            null
+        }
+    }
 
     fun exportAudio(context: Context, sourceFile: File, displayFileName: String): Boolean {
         if (!sourceFile.isFile || !sourceFile.exists() || sourceFile.length() <= 0L) {
@@ -109,6 +241,29 @@ object PublicMoaMediaStoreExport {
             Log.e(TAG, "exportPdf: invalid source ${sourceFile.absolutePath}")
             return false
         }
+        return exportDocumentToDocumentsMoa(
+            context = context,
+            sourceFile = sourceFile,
+            displayFileName = displayFileName,
+            mimeType = "application/pdf",
+        )
+    }
+
+    /**
+     * PDF가 아닌 문서·기타 파일도 **`Documents/MOA/`** 에 저장한다.
+     * (회의 상세에서 서버 파일을 받아 공용 경로에 맞출 때 사용)
+     */
+    fun exportDocumentToDocumentsMoa(
+        context: Context,
+        sourceFile: File,
+        displayFileName: String,
+        mimeType: String,
+    ): Boolean {
+        if (!sourceFile.isFile || !sourceFile.exists() || sourceFile.length() <= 0L) {
+            Log.e(TAG, "exportDocument: invalid source ${sourceFile.absolutePath}")
+            return false
+        }
+        val mime = mimeType.ifBlank { "application/octet-stream" }
         val docType =
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                 MediaStore.Files.FileColumns.MEDIA_TYPE_DOCUMENT
@@ -120,7 +275,7 @@ object PublicMoaMediaStoreExport {
                 context = context,
                 collection = MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
                 displayName = displayFileName,
-                mimeType = "application/pdf",
+                mimeType = mime,
                 relativePath = relativePathDocumentsMoa,
                 sourceFile = sourceFile,
                 filesMediaType = docType,

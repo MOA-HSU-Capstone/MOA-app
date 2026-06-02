@@ -49,7 +49,7 @@ fun getOrCreateFolder(context: Context, folderName: String?): File {
     val baseDir = File(context.filesDir, "MOA")
     if (!baseDir.exists()) baseDir.mkdir()
 
-    val folder = File(baseDir, folderName)
+    val folder = File(baseDir, folderName.orEmpty())
     if (!folder.exists()) folder.mkdir()
 
     return folder
@@ -576,7 +576,7 @@ class RecordingFragment : Fragment(R.layout.fragment_recording) {
         val input = EditText(requireContext()).apply {
             hint = getString(R.string.recording_save_hint)
             val meetingTitle = sessionViewModel.meetingDraft.value?.title?.trim().orEmpty()
-            setText(if (meetingTitle.isBlank()) "녹음파일" else "$meetingTitle 녹음파일")
+            setText(meetingTitle.ifBlank { "녹음" })
         }
 
         container.addView(
@@ -759,13 +759,13 @@ class RecordingFragment : Fragment(R.layout.fragment_recording) {
             MeetingFileRow(
                 title =
                     displayName.ifBlank {
-                        firstExistingFile?.nameWithoutExtension ?: "녹음파일"
+                        firstExistingFile?.nameWithoutExtension ?: "녹음"
                     },
                 subtitle = subtitle,
                 localPath = localPath,
                 displayName =
                     displayName.ifBlank {
-                        firstExistingFile?.nameWithoutExtension ?: "녹음파일"
+                        firstExistingFile?.nameWithoutExtension ?: "녹음"
                     },
                 type = MeetingFileRow.Type.AUDIO,
             )
