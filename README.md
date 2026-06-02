@@ -1,247 +1,149 @@
-한성대학교 모바일소프트웨어 캡스톤 연대기팀입니다.
-<img width="1061" height="922" alt="스크린샷 2026-03-10 143527" src="https://github.com/user-attachments/assets/075a8ff8-c62d-4dd8-80c0-d2ff33d5018d" />
 
 
-# MOA Backend (Multimodal Orchestrated Assistant)
+# MOA
 
-## 📌 프로젝트 소개
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/4aff31ff-26c8-4ff2-8aed-af6f00282c58" width="100%" alt="MOA 표지" />
+</div>
 
-MOA는 **회의 음성(STT) + 회의 자료(OCR)**를 기반으로
-AI가 자동으로 회의 내용을 분석하여
+MOA(Multimodal Orchestrated Assistant **(모아)** — 회의 음성·문서·이미지를 모아 AI가 요약·결정 사항·할 일까지 정리해 주는 모바일 회의 관리 서비스입니다.
 
-* 회의 요약 (Summary)
-* 결정 사항 (Decisions)
-* Action Item (할 일 목록)
+  
 
-을 생성하는 **멀티모달 AI 회의 분석 시스템**입니다.
 
-본 backend는 해당 기능을 수행하는 **AI 파이프라인 및 서버 로직**을 담당합니다.
+> 회의를 기록하는 시간을 줄이고, 회의의 가치를 높이다.
 
----
+  
 
-## 🧠 시스템 구조
 
-```
-Audio / Image Input
-        ↓
-Whisper STT / OCR
-        ↓
-Preprocessing
-        ↓
-LLM (GPT)
-        ↓
-Summary / Decisions / Action Items
-        ↓
-DB 저장 및 응답
-```
+**한성대학교 모바일소프트웨어트랙 캡스톤디자인 · 연대기팀** · 개발 기간 2026.03.05 ~ 2026.06.05
+
+
 
 ---
 
-## 📁 폴더 구조
+## 기술 스택
 
-```
-backend/
-└─ app/
-   ├─ main.py
-   ├─ ai/
-   ├─ config/
-   ├─ models/
-   ├─ repositories/
-   ├─ routers/
-   ├─ services/
-   ├─ storage/
-   ├─ utils/
-```
+배지를 클릭하면 해당 기술의 공식 문서 또는 제품 페이지로 이동합니다.
 
----
+### Android 클라이언트 (`:app` 모듈)
 
-## 📂 폴더 및 파일 설명
+[![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com)
+[Kotlin](https://kotlinlang.org)
+[Jetpack Navigation](https://developer.android.com/guide/navigation)
+[Lifecycle](https://developer.android.com/topic/libraries/architecture/lifecycle)
+[WorkManager](https://developer.android.com/develop/background-work/background-tasks/persistent/getting-started)
+[Retrofit](https://square.github.io/retrofit/)
+[OkHttp](https://square.github.io/okhttp/)
+[Gson](https://github.com/google/gson)
+[Coroutines](https://kotlinlang.org/docs/coroutines-overview.html)
+[ML Kit Doc Scanner](https://developers.google.com/ml-kit/vision/doc-scanner)
+[Material](https://m3.material.io/)
+[Gradle](https://gradle.org/)
 
-### 🔹 main.py
+### 백엔드·AI (시스템 구성)
 
-* 백엔드 실행 진입점
-* API 서버 초기화 및 라우터 연결
-
----
-
-### 🔹 ai/ (AI 모델 실행 계층)
-
-| 파일                    | 설명                           |
-| --------------------- | ---------------------------- |
-| stt_engine.py         | Whisper 기반 STT 처리 (음성 → 텍스트) |
-| image_ocr.py          | 이미지에서 텍스트 추출 (OCR)           |
-| meeting_summarizer.py | LLM(GPT)을 이용한 회의 요약/구조화      |
-
-👉 실제 AI 모델 호출이 일어나는 영역
+[Python](https://www.python.org/)
+[FastAPI](https://fastapi.tiangolo.com/)
+[Uvicorn](https://www.uvicorn.org/)
+[SQLite](https://www.sqlite.org/)
+[JWT](https://jwt.io/)
+[OpenAI](https://platform.openai.com/)
+[Google Cloud](https://cloud.google.com/speech-to-text)
 
 ---
 
-### 🔹 config/ (설정 관리)
+## 프로젝트 디렉토리
 
-| 파일               | 설명                  |
-| ---------------- | ------------------- |
-| settings.py      | 환경 변수 및 설정 관리       |
-| openai_client.py | OpenAI API 클라이언트 설정 |
-| database.py      | DB 연결 설정 (추후 구현)    |
+저장소 루트 기준 주요 구조입니다.
 
----
-
-### 🔹 models/ (데이터 모델)
-
-| 파일                  | 설명                      |
-| ------------------- | ----------------------- |
-| meeting_model.py    | 회의 기본 정보                |
-| transcript_model.py | STT 텍스트 데이터             |
-| summary_model.py    | 요약 / 결정사항 / Action Item |
-| image_model.py      | 이미지 및 OCR 결과            |
-| base.py             | 공통 모델 정의                |
-
----
-
-### 🔹 repositories/ (DB 접근 계층)
-
-| 파일                       | 설명               |
-| ------------------------ | ---------------- |
-| meeting_repository.py    | 회의 데이터 저장/조회     |
-| transcript_repository.py | STT 텍스트 저장       |
-| summary_repository.py    | 요약 결과 저장         |
-| image_repository.py      | 이미지 및 OCR 데이터 저장 |
-
-👉 DB CRUD 담당 (비즈니스 로직 없음)
-
----
-
-### 🔹 routers/ (API 엔드포인트)
-
-| 파일                | 설명           |
-| ----------------- | ------------ |
-| meeting_router.py | 회의 분석 요청 API |
-| upload_router.py  | 파일 업로드 API   |
-
-👉 클라이언트(Android)와 직접 연결되는 부분
-
----
-
-### 🔹 services/ (비즈니스 로직)
-
-| 파일                 | 설명                        |
-| ------------------ | ------------------------- |
-| meeting_service.py | 전체 회의 처리 흐름 orchestration |
-| stt_service.py     | STT 처리                    |
-| summary_service.py | LLM 요약 처리                 |
-| image_service.py   | OCR 처리                    |
-| upload_service.py  | 파일 업로드 처리                 |
-
-👉 실제 기능 흐름을 담당하는 핵심 계층
-
----
-
-### 🔹 storage/ (파일 관리)
-
-| 파일              | 설명         |
-| --------------- | ---------- |
-| file_manager.py | 파일 저장 및 관리 |
-| upload_paths.py | 업로드 경로 설정  |
-
----
-
-### 🔹 utils/
-
-| 파일            | 설명                         |
-| ------------- | -------------------------- |
-| preprocess.py | STT 텍스트 전처리 (공백 정리, 구조화 등) |
-
-👉 LLM 입력 품질을 높이기 위한 전처리
-
----
-
-## ⚙️ 실행 방법
-
-### 1. backend 폴더 이동
-
-```bash
-cd backend
-```
-
-### 2. 라이브러리 설치
-
-```bash
-pip install -r requirements.txt
-```
-
-### 3. 환경 변수 설정
-
-`.env` 파일 생성
-
-```env
-OPENAI_API_KEY=your_api_key
-OPENAI_MODEL=gpt-4o-mini
+```text
+MOA/
+├── app/                          # Android 애플리케이션 (단일 Gradle 모듈)
+│   └── src/main/
+│       ├── java/.../a20260310/
+│       │   ├── MainActivity.kt   # NavHost + 드로어 네비게이션
+│       │   ├── data/             # remote(API)·local·repository·model·auth·poll
+│       │   ├── ui/               # splash, login, home, add, recording, summary, detail, history, addcomplete
+│       │   ├── viewmodel/
+│       │   └── worker/           # 요약 완료 폴링 등 WorkManager
+│       └── res/
+│           ├── navigation/       # nav_graph.xml
+│           ├── layout/, menu/, values/
+│           └── ...
+├── backend/                      # FastAPI API 서버 (Python)
+│   └── app/
+│       ├── main.py
+│       ├── routers/, services/, repositories/, models/
+│       ├── ai/                   # STT 연동, 요약, OCR 등
+│       ├── config/, storage/, utils/
+│       └── ...
+├── assets/                       # README용 이미지 (시스템 아키텍처 등)
+├── api_server.py                 # 보조 STT 실험용 Flask 스크립트(선택)
+├── gradle/
+│   └── libs.versions.toml        # 버전 카탈로그
+├── build.gradle.kts
+├── settings.gradle.kts
+├── gradlew, gradlew.bat
+└── README.md
 ```
 
 ---
 
-## 🧪 테스트 방법
+## 주요 기능
 
-현재는 API 서버 없이도 테스트 가능
 
-```python
-from services.meeting_service import process_meeting_text
+| 구분    | 내용                                              |
+| ----- | ----------------------------------------------- |
+| 회의·폴더 | 폴더 단위로 회의 구분, 목록·상세에서 일정·상태 확인                  |
+| 입력 소스 | 문서(PDF·이미지)·오디오 업로드, 기기 녹음, ML Kit 문서 스캔        |
+| AI·요약 | 서버 STT·문서·이미지 처리 후 요약·결정 사항·할 일(Action Item) 생성 |
+| 요약 UX | 진행률·예상 시간, 요약 대기 큐, WorkManager 백그라운드 폴링        |
+| 회의 상세 | 요약·결정·할 일 편집, 첨부 파일 탭·다운로드                      |
+| 인증    | JWT 기반 로그인·회원가입                                 |
 
-result = process_meeting_text(
-    stt_raw="검색 속도가 느린 것 같아요 그래서 확인이 필요합니다",
-    ocr_text="회의 주제: 검색 성능 개선",
-    title="검색 개선 회의"
-)
-
-print(result)
-```
 
 ---
 
-## 🚧 현재 구현 상태
+## 시스템 아키텍처
 
-| 기능            | 상태   |
-| ------------- | ---- |
-| STT (Whisper) | 예정   |
-| OCR           | 예정   |
-| LLM 요약        | ✅ 구현 |
-| 전처리           | ✅ 구현 |
-| API 서버        | 일부   |
-| DB            | 예정   |
+팀에서 정의한 전체 시스템 구성입니다. Android 클라이언트는 **REST API + JWT**로 백엔드와 통신하고, 백엔드는 **SQLite**와 로컬 파일 저장소, **Google Cloud STT**·**OpenAI** 등과 연동합니다.
 
----
+다음 이미지는 저장소 [`assets/architecture.png`](assets/architecture.png) 파일입니다.
 
-## 🔥 핵심 설계 특징
+<div align="center">
+  <img src="./assets/architecture.png" width="100%" alt="MOA 시스템 아키텍처" />
+</div>
 
-* **멀티모달 처리 (음성 + 이미지)**
-* **프레임워크 독립적인 AI 파이프라인**
-* **전처리 최소화 → LLM 중심 구조**
-* **확장 가능한 계층형 구조 (ai / service / repository 분리)**
+사용자는 Android 앱에서 회의 자료를 올리고, API 서버가 메타데이터와 파일을 저장한 뒤 AI 서비스로 분석·요약 결과를 받아 다시 앱에 전달하는 흐름으로 동작합니다.
 
 ---
 
-## 📌 향후 계획
+## 앱 화면 네비게이션
 
-* Whisper STT 실제 연동
-* OCR 정확도 개선
-* 실시간 자막 기능
-* Android 앱 연동
-* DB 저장 및 조회 기능 구현
+[`nav_graph.xml`](app/src/main/res/navigation/nav_graph.xml) · [`MainActivity`](app/src/main/java/com/example/a20260310/MainActivity.kt) 기준으로, **자주 쓰는 화면만** 정리했습니다.
+
+| 화면 | 역할 |
+| --- | --- |
+| `HomeFragment` | 메인: 회의 목록, 요약 패널, 회의 추가·상세로 진입 |
+| `DetailFragment` | 회의 상세(요약·결정·할 일·첨부 파일) |
+| `AddMethodFragment` → `SummarizingFragment` → `SummaryFragment` | 자료 등록 후 요약 진행·결과 확인(필요 시 `RecordingFragment`에서 녹음) |
+| `LoginFragment` / `SignupFragment` | 로그인·회원가입 |
+| `HistoryFragment` | 드로어 **설정**, 로그아웃 |
+
+회의 추가 전체 순서: **홈** → 폴더 선택 → 회의 정보 작성 → 자료 추가 → 요약 중 → 요약 결과 → 완료 후 **홈** 복귀.
+
+## 팀 (연대기)
+
+
+| 이름  | 역할                                  |
+| --- | ----------------------------------- |
+| 김민서 | Android Frontend / UI · UX          |
+| 오형채 | Backend (API 연동 서버 구축 및 DB 아키텍처 설계) |
+| 박민혁 | STT (API 연동 및 서버 인프라 관리)            |
+| 신현규 | LLM (AI 모델 최적화 및 UI 인터페이스 설계)       |
+
 
 ---
 
-## 👥 역할 분담 (예시)
-
-| 역할            | 담당 |
-| ------------- | -- |
-| AI (LLM, 전처리) | 본인 |
-| STT           | 팀원 |
-| OCR           | 팀원 |
-| Backend API   | 팀원 |
-| Android 앱     | 팀원 |
-
----
-
-## 📌 한 줄 정리
-
-> MOA Backend는 **회의 데이터를 AI로 분석하여 자동으로 회의록을 생성하는 시스템의 핵심 엔진**이다.
+한성대학교 모바일소프트웨어트랙 캡스톤디자인 프로젝트입니다.

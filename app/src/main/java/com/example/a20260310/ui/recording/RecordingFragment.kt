@@ -38,9 +38,14 @@ import java.util.Locale
 import java.util.*
 import org.json.JSONArray
 import org.json.JSONObject
+import androidx.lifecycle.lifecycleScope
+import com.example.a20260310.data.local.LocalMediaFolders
 import com.example.a20260310.data.local.MeetingLocalFilesPrefs
 import com.example.a20260310.data.model.MeetingFileRow
 import com.google.gson.Gson
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 fun getCurrentFileName(): String {
     val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
@@ -621,8 +626,29 @@ class RecordingFragment : Fragment(R.layout.fragment_recording) {
                     segmentLocalPaths = orderedPaths,
                 )
 
-                d.dismiss()
-                findNavController().navigate(R.id.action_recordingFragment_to_addMethodFragment)
+                val appCtx = requireContext().applicationContext
+                val pathsForExport = orderedPaths.toList()
+                val exportDisplayName = displayName
+                lifecycleScope.launch {
+                    val savedName = withContext(Dispatchers.IO) {
+                        LocalMediaFolders.exportRecordingSegments(appCtx, exportDisplayName, pathsForExport)
+                    }
+                    if (savedName != null) {
+                        Toast.makeText(
+                            requireContext(),
+                            getString(R.string.toast_file_saved_as, savedName),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    } else {
+                        Toast.makeText(
+                            requireContext(),
+                            getString(R.string.local_export_recording_failed),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
+                    d.dismiss()
+                    findNavController().navigate(R.id.action_recordingFragment_to_addMethodFragment)
+                }
             }
             .show()
     }

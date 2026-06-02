@@ -1,6 +1,7 @@
 package com.example.a20260310.ui.add
 
 import android.app.Activity
+import android.content.Context
 import android.content.IntentSender
 import android.net.Uri
 import android.os.Bundle
@@ -20,6 +21,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.example.a20260310.R
+import com.example.a20260310.data.local.LocalMediaFolders
 import com.example.a20260310.data.local.MeetingLocalFilesPrefs
 import com.example.a20260310.data.model.MeetingFileRow
 import com.example.a20260310.viewmodel.MeetingSessionViewModel
@@ -86,27 +88,41 @@ class AddMethodFragment : Fragment(R.layout.fragment_add_method) {
         registerForActivityResult(ActivityResultContracts.StartIntentSenderForResult()) { result ->
             if (result.resultCode != Activity.RESULT_OK) return@registerForActivityResult
 
-            val scanResult = GmsDocumentScanningResult.fromActivityResultIntent(result.data)
-            val pageCount = scanResult?.pages?.size ?: 0
-            val firstPage = scanResult?.pages?.firstOrNull()
-            val pdfUri = scanResult?.pdf?.uri
+            lifecycleScope.launch {
+                val ctx = requireContext()
+                val scanResult = GmsDocumentScanningResult.fromActivityResultIntent(result.data)
+                val pageCount = scanResult?.pages?.size ?: 0
+                val pdfUri = scanResult?.pdf?.uri
+                val firstPage = scanResult?.pages?.firstOrNull()
+                val fileUri = pdfUri ?: firstPage?.imageUri
+                val localName =
+                    when {
+                        pdfUri != null -> "scan_${System.currentTimeMillis()}.pdf"
+                        else -> "scan_${System.currentTimeMillis()}.jpg"
+                    }
 
-            val fileUri = pdfUri ?: firstPage?.imageUri
-            val localName = when {
-                pdfUri != null -> "scan_${System.currentTimeMillis()}.pdf"
-                else -> "scan_${System.currentTimeMillis()}.jpg"
-            }
-
-            val savedPath = fileUri?.let { copyUriToAppFile(it, localName) }
-
-            if (savedPath != null) {
-                val file = File(savedPath)
-                val mimeType = when {
-                    file.extension.equals("pdf", true) -> "application/pdf"
-                    file.extension.equals("jpg", true) || file.extension.equals("jpeg", true) -> "image/jpeg"
-                    file.extension.equals("png", true) -> "image/png"
-                    else -> requireContext().contentResolver.getType(fileUri) ?: "application/octet-stream"
+                if (fileUri == null) {
+                    Toast.makeText(ctx, getString(R.string.toast_scan_no_file), Toast.LENGTH_SHORT).show()
+                    return@launch
                 }
+
+                val savedPath =
+                    withContext(Dispatchers.IO) {
+                        copyUriToAppFile(ctx, fileUri, localName)
+                    }
+                if (savedPath == null) {
+                    Toast.makeText(ctx, getString(R.string.toast_scan_copy_failed), Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+
+                val file = File(savedPath)
+                val mimeType =
+                    when {
+                        file.extension.equals("pdf", true) -> "application/pdf"
+                        file.extension.equals("jpg", true) || file.extension.equals("jpeg", true) -> "image/jpeg"
+                        file.extension.equals("png", true) -> "image/png"
+                        else -> ctx.contentResolver.getType(fileUri) ?: "application/octet-stream"
+                    }
 
                 val fileType = if (mimeType == "application/pdf") "PDF" else "IMAGE"
 
@@ -125,9 +141,30 @@ class AddMethodFragment : Fragment(R.layout.fragment_add_method) {
                     fileType = fileType,
                     mimeType = mimeType,
                 )
-            }
 
-            Toast.makeText(requireContext(), "스캔 완료: ${pageCount}페이지", Toast.LENGTH_SHORT).show()
+                val appCtx = ctx.applicationContext
+                val savedPublicName =
+                    withContext(Dispatchers.IO) {
+                        when (fileType) {
+                            "PDF" -> LocalMediaFolders.exportPdfFile(appCtx, file, file.name)
+                            else -> LocalMediaFolders.exportPhotoFile(appCtx, file, file.name)
+                        }
+                    }
+
+                if (savedPublicName != null) {
+                    Toast.makeText(
+                        ctx,
+                        getString(R.string.toast_scan_saved_pages, savedPublicName, pageCount),
+                        Toast.LENGTH_LONG,
+                    ).show()
+                } else {
+                    Toast.makeText(
+                        ctx,
+                        getString(R.string.toast_scan_export_failed, pageCount),
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
         }
 
     private val pickDocumentFile =
@@ -177,11 +214,38 @@ class AddMethodFragment : Fragment(R.layout.fragment_add_method) {
                         mimeType = mimeType,
                     )
 
-                    Toast.makeText(
-                        requireContext(),
-                        getString(R.string.add_document_added, displayName),
-                        Toast.LENGTH_SHORT,
-                    ).show()
+                    var skipDocumentAddedToast = false
+                    if (fileType == "IMAGE") {
+                        val savedName = withContext(Dispatchers.IO) {
+                            LocalMediaFolders.exportPhotoFile(
+                                requireContext().applicationContext,
+                                File(outputPath),
+                                displayName,
+                            )
+                        }
+                        if (savedName != null) {
+                            Toast.makeText(
+                                requireContext(),
+                                getString(R.string.toast_file_saved_as, savedName),
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                            skipDocumentAddedToast = true
+                        } else {
+                            Toast.makeText(
+                                requireContext(),
+                                getString(R.string.local_export_photo_failed),
+                                Toast.LENGTH_SHORT,
+                            ).show()
+                        }
+                    }
+
+                    if (!skipDocumentAddedToast) {
+                        Toast.makeText(
+                            requireContext(),
+                            getString(R.string.add_document_added, displayName),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                    }
                 } else {
                     Toast.makeText(requireContext(), "문서 파일을 읽지 못했습니다.", Toast.LENGTH_SHORT).show()
                 }
@@ -288,6 +352,15 @@ class AddMethodFragment : Fragment(R.layout.fragment_add_method) {
 
     private fun getMeetingTitle(): String = sessionViewModel.currentMeetingTitle.value ?: "회의"
 
+    /**
+     * URI에서 복사한 첨부·스캔 파일을 둔다. [Context.getExternalFilesDir]가 아닌
+     * [Context.filesDir]만 사용한다 (`Android/data/.../files`에 저장하지 않음).
+     */
+    private fun importWorkDir(context: Context): File =
+        File(context.filesDir, "MOA/imports").apply { mkdirs() }
+
+    private fun importWorkDir(): File = importWorkDir(requireContext())
+
     private fun resolveMimeType(uri: Uri, displayName: String): String {
         val resolverMime = requireContext().contentResolver.getType(uri)?.lowercase(Locale.ROOT)
         if (!resolverMime.isNullOrBlank()) return resolverMime
@@ -322,7 +395,7 @@ class AddMethodFragment : Fragment(R.layout.fragment_add_method) {
 
     private fun copyPickedDocumentToAppStorage(uri: Uri, displayName: String): String? {
         val safeName = displayName.replace("""[^\w.\-가-힣]""".toRegex(), "_")
-        val outputFile = File(requireContext().getExternalFilesDir(null), "${System.currentTimeMillis()}_$safeName")
+        val outputFile = File(importWorkDir(), "${System.currentTimeMillis()}_$safeName")
         return runCatching {
             requireContext().contentResolver.openInputStream(uri).use { input ->
                 if (input == null) return null
@@ -334,7 +407,7 @@ class AddMethodFragment : Fragment(R.layout.fragment_add_method) {
 
     private fun copyPickedAudioToAppStorage(uri: Uri, displayName: String): String? {
         val safeName = displayName.replace("""[^\w.\-가-힣]""".toRegex(), "_")
-        val outputFile = File(requireContext().getExternalFilesDir(null), "${System.currentTimeMillis()}_$safeName")
+        val outputFile = File(importWorkDir(), "${System.currentTimeMillis()}_$safeName")
         return runCatching {
             requireContext().contentResolver.openInputStream(uri).use { input ->
                 if (input == null) return null
@@ -434,10 +507,10 @@ class AddMethodFragment : Fragment(R.layout.fragment_add_method) {
         resources.displayMetrics,
     ).toInt()
 
-    private fun copyUriToAppFile(uri: Uri, fileName: String): String? {
-        val outputFile = File(requireContext().getExternalFilesDir(null), fileName)
+    private fun copyUriToAppFile(context: Context, uri: Uri, fileName: String): String? {
+        val outputFile = File(importWorkDir(context), fileName)
         return runCatching {
-            requireContext().contentResolver.openInputStream(uri).use { input ->
+            context.contentResolver.openInputStream(uri).use { input ->
                 if (input == null) return null
                 outputFile.outputStream().use { output -> input.copyTo(output) }
             }

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MOA 기술 전시용 카드</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;700;900&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { background-color: #0f111a; display: flex; justify-content: center; align-items: center; min-height: 100vh; font-family: 'Pretendard', sans-serif; overflow: hidden; }
+        .card-preview { width: 800px; height: 600px; background: linear-gradient(145deg, #0d111c 0%, #070a12 100%); border-radius: 20px; overflow: hidden; position: relative; display: grid; grid-template-columns: 1.15fr 0.85fr; padding: 55px; gap: 35px; border: 1px solid #1e2638; box-shadow: 0 30px 60px -15px rgba(0, 0, 0, 0.7); }
+        .card-preview::before { content: ''; position: absolute; top: -20%; right: -10%; width: 350px; height: 350px; background: radial-gradient(circle, rgba(16, 185, 129, 0.12) 0%, rgba(0, 0, 0, 0) 70%); filter: blur(50px); pointer-events: none; }
+        .content-side { display: flex; flex-direction: column; justify-content: space-between; z-index: 2; }
+        .tag { display: inline-flex; align-items: center; gap: 6px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); color: #10b981; padding: 6px 14px; border-radius: 100px; font-size: 13px; font-weight: 700; width: fit-content; letter-spacing: -0.3px; }
+        .title-area { margin-top: 15px; }
+        .title-area h1 { font-family: 'Space Grotesk', sans-serif; font-size: 64px; color: #ffffff; font-weight: 900; line-height: 1.05; letter-spacing: -1px; }
+        .title-area h1 span { color: #10b981; }
+        .title-area .subtitle { font-size: 21px; color: #94a3b8; font-weight: 600; margin-top: 8px; margin-bottom: 35px; letter-spacing: -0.5px; }
+        .features { display: flex; flex-direction: column; gap: 16px; }
+        .feature-item { display: flex; align-items: flex-start; gap: 12px; }
+        .feature-item i { color: #10b981; font-size: 16px; margin-top: 4px; }
+        .feature-item .text-group { display: flex; flex-direction: column; }
+        .feature-item .main-text { color: #f1f5f9; font-size: 16px; font-weight: 700; margin-bottom: 2px; }
+        .feature-item .sub-text { color: #64748b; font-size: 13px; font-weight: 500; }
+        .team-info { font-size: 13px; color: #475569; font-weight: 600; letter-spacing: -0.3px; border-top: 1px solid #1e2638; padding-top: 20px; }
+        .graphic-side { display: flex; justify-content: center; align-items: center; z-index: 2; }
+        .mockup-container { width: 100%; height: 100%; background: rgba(13, 17, 28, 0.7); border: 1px solid #22314d; border-radius: 16px; padding: 26px; display: flex; flex-direction: column; gap: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.4); }
+        .mockup-header { display: flex; align-items: center; gap: 6px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background-color: #ef4444; }
+        .dot:nth-child(2) { background-color: #f59e0b; }
+        .dot:nth-child(3) { background-color: #10b981; }
+        .mockup-wave { height: 90px; background: rgba(16, 185, 129, 0.03); border-radius: 10px; display: flex; align-items: center; justify-content: center; gap: 5px; border: 1px dashed #22314d; }
+        .wave-bar { width: 4px; background-color: #10b981; border-radius: 2px; height: 50%; animation: pulse 1s infinite ease-in-out; }
+        .wave-bar:nth-child(1) { animation-delay: 0.1s; }
+        .wave-bar:nth-child(2) { animation-delay: 0.3s; }
+        .wave-bar:nth-child(3) { animation-delay: 0.6s; }
+        .wave-bar:nth-child(4) { background-color: #34d399; animation-delay: 0.2s; }
+        .wave-bar:nth-child(5) { animation-delay: 0.4s; }
+        .mockup-result { flex-grow: 1; background: rgba(0, 0, 0, 0.25); border-radius: 10px; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+        .line { height: 10px; background-color: #1e293b; border-radius: 5px; width: 100%; }
+        .line.active { width: 45%; background-color: #10b981; opacity: 0.9; }
+        .line.medium { width: 80%; }
+        @keyframes pulse { 0%, 100% { transform: scaleY(0.5); } 50% { transform: scaleY(1.5); } }
+    </style>
+</head>
+<body>
+    <div class="card-preview">
+        <div class="content-side">
+            <div>
+                <div class="tag"><i class="fa-solid fa-code" style="font-size: 11px;"></i> 모바일 소프트웨어 트랙</div>
+                <div class="title-area">
+                    <h1>MOA<span>.</span></h1>
+                    <div class="subtitle">AI 지능형 회의록 솔루션</div>
+                </div>
+                <div class="features">
+                    <div class="feature-item">
+                        <i class="fa-solid fa-circle-check"></i>
+                        <div class="text-group">
+                            <span class="main-text">멀티모달 회의록</span>
+                            <span class="sub-text">음성·문서·이미지를 통합 분석하여<br>회의 맥락을 완벽하게 파악합니다.</span>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fa-solid fa-circle-check"></i>
+                        <div class="text-group">
+                            <span class="main-text">AI 자동 정리</span>
+                            <span class="sub-text">GPT 기반으로 요약·핵심사항·액션 아이템을<br>자동 생성하여 정리 시간을 단축합니다.</span>
+                        </div>
+                    </div>
+                    <div class="feature-item">
+                        <i class="fa-solid fa-circle-check"></i>
+                        <div class="text-group">
+                            <span class="main-text">안드로이드 네이티브 연동</span>
+                            <span class="sub-text">백엔드-앱 간 안정적인 데이터 파이프라인 구축</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="team-info">
+                <p><i class="fa-regular fa-folder-open" style="margin-right: 6px;"></i> 하드웨어 제약 조건 극대화 및 음성 처리 알고리즘 검증</p>
+            </div>
+        </div>
+        <div class="graphic-side">
+            <div class="mockup-container">
+                <div class="mockup-header">
+                    <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                </div>
+                <div class="mockup-wave">
+                    <div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div>
+                </div>
+                <div class="mockup-result">
+                    <div class="line active"></div><div class="line"></div><div class="line medium"></div><div class="line"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

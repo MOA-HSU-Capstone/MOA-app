@@ -37,6 +37,13 @@
     <string name="recording_save_confirm">저장</string>
     <string name="recording_no_file">저장할 녹음 파일이 없습니다.</string>
     <string name="recording_playback_failed">재생을 시작할 수 없습니다.</string>
+    <string name="local_export_recording_failed">Recordings 폴더에 저장하지 못했습니다. 로그를 확인해 주세요.</string>
+    <string name="local_export_photo_failed">Photos 폴더에 저장하지 못했습니다. 로그를 확인해 주세요.</string>
+    <string name="toast_file_saved_as">\"%1$s\"이(가) 저장되었습니다.</string>
+    <string name="toast_scan_saved_pages">\"%1$s\"이(가) 저장되었습니다. (스캔 %2$d페이지)</string>
+    <string name="toast_scan_export_failed">스캔 %1$d페이지: 공용 폴더에 저장하지 못했습니다.</string>
+    <string name="toast_scan_copy_failed">스캔 파일을 앱에 복사하지 못했습니다.</string>
+    <string name="toast_scan_no_file">스캔 결과 파일이 없습니다.</string>
     <string name="summarizing_title">요약 중</string>
     <string name="summarizing_message">회의 내용을 분석하고 있습니다…</string>
     <string name="summarizing_error_generic">요약 처리 중 오류가 발생했습니다.</string>

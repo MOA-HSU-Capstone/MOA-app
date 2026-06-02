@@ -36,6 +36,9 @@
         </provider>
     </application>
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <!-- API 28 이하에서 공용 Recordings/MOA, Pictures/MOA 파일 경로 저장 시 필요. API 29+는 MediaStore만 사용. -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
 
 </manifest>
