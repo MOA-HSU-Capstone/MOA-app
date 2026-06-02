@@ -11,10 +11,10 @@ import com.example.a20260310.data.remote.dto.DecisionDto
 import com.example.a20260310.data.remote.dto.DecisionUpdateRequestDto
 import com.example.a20260310.data.remote.dto.ImageUploadResponseDto
 import com.example.a20260310.data.remote.dto.MeetingCreateRequest
+import com.example.a20260310.data.remote.dto.UploadedFileDto
 import com.example.a20260310.data.remote.dto.MeetingResponseDto
 import com.example.a20260310.data.remote.dto.SummaryDetailResponseDto
 import com.example.a20260310.data.remote.dto.SummaryGenerateResponseDto
-import com.example.a20260310.data.remote.dto.SummaryUpdateRequest
 import com.example.a20260310.data.remote.dto.TranscriptResponseDto
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
@@ -212,6 +212,27 @@ class MeetingRepository(
             actionItemId,
             ActionItemUpdateRequestDto(task = task, assignee = assignee, dueDate = dueDate),
         )
+    }
+
+    suspend fun getMeetingFiles(meetingId: Int): List<UploadedFileDto> {
+        return try {
+            val response = api.getMeetingFiles(meetingId)
+            Log.d("MeetingRepository", "Audio files: ${response.audioFiles.size}, Image files: ${response.imageFiles.size}")
+
+            val allFiles = mutableListOf<UploadedFileDto>()
+            allFiles.addAll(response.audioFiles)
+            allFiles.addAll(response.imageFiles)
+
+            allFiles
+        } catch (e: HttpException) {
+            Log.e("MeetingRepository", "getMeetingFiles HTTP error ${e.code()}")
+            e.printStackTrace()
+            emptyList()
+        } catch (e: Exception) {
+            Log.e("MeetingRepository", "getMeetingFiles exception", e)
+            e.printStackTrace()
+            emptyList()
+        }
     }
 
     suspend fun deleteActionItem(actionItemId: Int): Response<Unit> {

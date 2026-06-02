@@ -36,6 +36,12 @@ data class MeetingResponseDto(
     @SerializedName("updated_at") val updatedAt: String? = null,
 )
 
+data class MeetingFilesResponse(
+    @SerializedName("meeting_id") val meetingId: Int,
+    @SerializedName("audio_files") val audioFiles: List<UploadedFileDto>?,
+    @SerializedName("image_files") val imageFiles: List<UploadedFileDto>?
+)
+
 data class TranscriptResponseDto(
     @SerializedName("id") val id: Int,
     @SerializedName("meeting_id") val meetingId: Int,

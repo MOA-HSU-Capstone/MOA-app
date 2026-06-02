@@ -56,6 +56,8 @@ import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Locale
+import com.example.a20260310.data.remote.dto.UploadedFileDto
+import com.example.a20260310.data.remote.dto.MeetingFilesResponseDto
 
 class DetailFragment : Fragment(R.layout.fragment_detail) {
 
@@ -559,18 +561,49 @@ class DetailFragment : Fragment(R.layout.fragment_detail) {
     /**
      * 서버 경로(API·세션) + 이 회의 전용 로컬 목록(`meeting_{id}_files_json` 또는 제목 키).
      */
+
+// DetailFragment.kt
     private fun bindMeetingFileList() {
-        val rows = mergedMeetingFileRows()
-        if (rows.isEmpty()) {
-            fileRecycler.adapter = null
-            fileRecycler.visibility = View.GONE
+        if (meetingId <= 0) {
             fileEmptyState.visibility = View.VISIBLE
+            fileRecycler.visibility = View.GONE
             return
         }
-        fileEmptyState.visibility = View.GONE
-        fileRecycler.visibility = View.VISIBLE
-        fileRecycler.adapter =
-            MeetingFileAdapter(rows) { row -> onMeetingFileRowClicked(row) }
+
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                val files = viewModel.getMeetingFiles(meetingId)  // List<UploadedFileDto>
+
+                if (files.isEmpty()) {
+                    fileEmptyState.visibility = View.VISIBLE
+                    fileRecycler.visibility = View.GONE
+                    fileRecycler.adapter = null
+                } else {
+                    fileEmptyState.visibility = View.GONE
+                    fileRecycler.visibility = View.VISIBLE
+
+                    val rows = files.map { file ->
+                        MeetingFileRow(
+                            title = file.originalName,
+                            subtitle = file.fileType,
+                            localPath = "",
+                            displayName = file.originalName,
+                            type = when (file.fileType.uppercase()) {
+                                "AUDIO" -> MeetingFileRow.Type.AUDIO
+                                "IMAGE" -> MeetingFileRow.Type.IMAGE
+                                "PDF" -> MeetingFileRow.Type.PDF
+                                else -> MeetingFileRow.Type.DOCUMENT
+                            },
+                            downloadUrl = file.savedPath
+                        )
+                    }
+
+                    fileRecycler.adapter = MeetingFileAdapter(rows) { row ->
+                        onMeetingFileRowClicked(row)
+                    }
+                }
+            }
+        }
     }
 
     private fun mergedMeetingFileRows(): List<MeetingFileRow> {

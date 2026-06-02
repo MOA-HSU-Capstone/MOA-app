@@ -8,6 +8,8 @@ import com.example.a20260310.data.remote.dto.DecisionDto
 import com.example.a20260310.data.remote.dto.DecisionUpdateRequestDto
 import com.example.a20260310.data.remote.dto.ImageUploadResponseDto
 import com.example.a20260310.data.remote.dto.MeetingCreateRequest
+import com.example.a20260310.data.remote.dto.MeetingFilesResponse
+import com.example.a20260310.data.remote.dto.MeetingFilesResponseDto
 import com.example.a20260310.data.remote.dto.MeetingResponseDto
 import com.example.a20260310.data.remote.dto.SummaryDetailResponseDto
 import com.example.a20260310.data.remote.dto.SummaryGenerateResponseDto
@@ -116,4 +118,9 @@ interface MeetingApiService {
     suspend fun deleteActionItem(
         @Path("action_item_id") actionItemId: Int,
     ): Response<Unit>
+
+    @GET("/meetings/{meeting_id}/files")
+    suspend fun getMeetingFiles(
+        @Path("meeting_id") meetingId: Int
+    ): MeetingFilesResponseDto
 }
