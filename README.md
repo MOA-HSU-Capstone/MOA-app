@@ -1,247 +1,209 @@
-한성대학교 모바일소프트웨어 캡스톤 연대기팀입니다.
-<img width="1061" height="922" alt="스크린샷 2026-03-10 143527" src="https://github.com/user-attachments/assets/075a8ff8-c62d-4dd8-80c0-d2ff33d5018d" />
+# MOA (Meeting Organizer Assistant)
 
+한성대학교 모바일소프트웨어트랙 캡스톤디자인 **연대기팀** 프로젝트
 
-# MOA Backend (Multimodal Orchestrated Assistant)
-
-## 📌 프로젝트 소개
-
-MOA는 **회의 음성(STT) + 회의 자료(OCR)**를 기반으로
-AI가 자동으로 회의 내용을 분석하여
-
-* 회의 요약 (Summary)
-* 결정 사항 (Decisions)
-* Action Item (할 일 목록)
-
-을 생성하는 **멀티모달 AI 회의 분석 시스템**입니다.
-
-본 backend는 해당 기능을 수행하는 **AI 파이프라인 및 서버 로직**을 담당합니다.
+<img width="1061" alt="MOA" src="https://github.com/user-attachments/assets/075a8ff8-c62d-4dd8-80c0-d2ff33d5018d" />
 
 ---
 
-## 🧠 시스템 구조
+# 📌 프로젝트 소개
 
-```
-Audio / Image Input
-        ↓
-Whisper STT / OCR
-        ↓
-Preprocessing
-        ↓
-LLM (GPT)
-        ↓
-Summary / Decisions / Action Items
-        ↓
-DB 저장 및 응답
-```
+MOA(Meeting Organizer Assistant, 모아)는 회의 음성 파일, 문서, 이미지 자료를 종합해 AI가 자동으로 회의 내용을 분석하고 정리해주는 스마트 회의 관리 서비스입니다.
+
+기존의 회의록 생성 서비스들은 음성만을 기반으로 합니다. MOA는 이러한 기존 서비스들의 한계를 넘어 회의 중에 사용한 문서 자료와 이미지 자료들도 첨부해 회의록을 자동으로 생성할 수 있습니다.
+
+사용자는 모바일 환경에서 회의 자료를 업로드하고, AI가 생성한 회의 요약과 핵심 내용을 확인하며 체계적으로 관리할 수 있습니다.
 
 ---
 
-## 📁 폴더 구조
+# 🎯 개발 목적
 
-```
-backend/
-└─ app/
-   ├─ main.py
-   ├─ ai/
-   ├─ config/
-   ├─ models/
-   ├─ repositories/
-   ├─ routers/
-   ├─ services/
-   ├─ storage/
-   ├─ utils/
-```
+회의가 끝난 후 회의록을 정리하는 과정은 많은 시간이 소요되며 중요한 내용이 누락될 가능성이 있습니다.
+
+MOA는 다음과 같은 문제를 해결하고자 합니다.
+
+* 회의록 작성 시간 단축
+* 회의 내용 자동 요약
+* 결정 사항 자동 추출
+* Action Item 자동 생성
+* 회의 자료 통합 관리
+* 모바일 기반 접근성 향상
 
 ---
 
-## 📂 폴더 및 파일 설명
+# ✨ 주요 기능
 
-### 🔹 main.py
+## 📂 회의록 관리
 
-* 백엔드 실행 진입점
-* API 서버 초기화 및 라우터 연결
+* 회의별 폴더 생성
+* 회의록 저장 및 조회
+* 폴더별 회의록 분류
 
----
+## 🎤 음성 파일 분석
 
-### 🔹 ai/ (AI 모델 실행 계층)
+* STT(Speech To Text) 기반 음성 변환
+* 회의 발언 내용 추출
+* 화자별 내용 분석
 
-| 파일                    | 설명                           |
-| --------------------- | ---------------------------- |
-| stt_engine.py         | Whisper 기반 STT 처리 (음성 → 텍스트) |
-| image_ocr.py          | 이미지에서 텍스트 추출 (OCR)           |
-| meeting_summarizer.py | LLM(GPT)을 이용한 회의 요약/구조화      |
+## 📄 문서 및 이미지 분석
 
-👉 실제 AI 모델 호출이 일어나는 영역
+* OCR 기반 텍스트 추출
+* 회의 자료 내용 분석
+* 이미지 내 텍스트 인식
 
----
+## 🤖 AI 회의 분석
 
-### 🔹 config/ (설정 관리)
+OpenAI GPT 기반 분석 기능 제공
 
-| 파일               | 설명                  |
-| ---------------- | ------------------- |
-| settings.py      | 환경 변수 및 설정 관리       |
-| openai_client.py | OpenAI API 클라이언트 설정 |
-| database.py      | DB 연결 설정 (추후 구현)    |
+* 회의 요약(Summary)
+* 핵심 내용(Key Points)
+* 결정 사항(Decisions)
+* Action Items 생성
 
----
+## 📱 Android 앱
 
-### 🔹 models/ (데이터 모델)
-
-| 파일                  | 설명                      |
-| ------------------- | ----------------------- |
-| meeting_model.py    | 회의 기본 정보                |
-| transcript_model.py | STT 텍스트 데이터             |
-| summary_model.py    | 요약 / 결정사항 / Action Item |
-| image_model.py      | 이미지 및 OCR 결과            |
-| base.py             | 공통 모델 정의                |
+* 모바일 환경 지원
+* 파일 업로드
+* 회의록 조회
+* AI 분석 결과 확인
 
 ---
 
-### 🔹 repositories/ (DB 접근 계층)
+# 🏗 시스템 아키텍처
 
-| 파일                       | 설명               |
-| ------------------------ | ---------------- |
-| meeting_repository.py    | 회의 데이터 저장/조회     |
-| transcript_repository.py | STT 텍스트 저장       |
-| summary_repository.py    | 요약 결과 저장         |
-| image_repository.py      | 이미지 및 OCR 데이터 저장 |
-
-👉 DB CRUD 담당 (비즈니스 로직 없음)
-
----
-
-### 🔹 routers/ (API 엔드포인트)
-
-| 파일                | 설명           |
-| ----------------- | ------------ |
-| meeting_router.py | 회의 분석 요청 API |
-| upload_router.py  | 파일 업로드 API   |
-
-👉 클라이언트(Android)와 직접 연결되는 부분
-
----
-
-### 🔹 services/ (비즈니스 로직)
-
-| 파일                 | 설명                        |
-| ------------------ | ------------------------- |
-| meeting_service.py | 전체 회의 처리 흐름 orchestration |
-| stt_service.py     | STT 처리                    |
-| summary_service.py | LLM 요약 처리                 |
-| image_service.py   | OCR 처리                    |
-| upload_service.py  | 파일 업로드 처리                 |
-
-👉 실제 기능 흐름을 담당하는 핵심 계층
-
----
-
-### 🔹 storage/ (파일 관리)
-
-| 파일              | 설명         |
-| --------------- | ---------- |
-| file_manager.py | 파일 저장 및 관리 |
-| upload_paths.py | 업로드 경로 설정  |
-
----
-
-### 🔹 utils/
-
-| 파일            | 설명                         |
-| ------------- | -------------------------- |
-| preprocess.py | STT 텍스트 전처리 (공백 정리, 구조화 등) |
-
-👉 LLM 입력 품질을 높이기 위한 전처리
-
----
-
-## ⚙️ 실행 방법
-
-### 1. backend 폴더 이동
-
-```bash
-cd backend
-```
-
-### 2. 라이브러리 설치
-
-```bash
-pip install -r requirements.txt
-```
-
-### 3. 환경 변수 설정
-
-`.env` 파일 생성
-
-```env
-OPENAI_API_KEY=your_api_key
-OPENAI_MODEL=gpt-4o-mini
+```text
+Android App
+      │
+      ▼
+Spring Boot Server
+      │
+      ▼
+File Storage
+      │
+      ▼
+AI Processing Pipeline
+ ├── OCR
+ ├── STT
+ └── GPT Analysis
+      │
+      ▼
+MySQL Database
+      │
+      ▼
+Meeting Summary
+Decision
+Action Items
 ```
 
 ---
 
-## 🧪 테스트 방법
+# 🛠 기술 스택
 
-현재는 API 서버 없이도 테스트 가능
+## Frontend
 
-```python
-from services.meeting_service import process_meeting_text
+* Kotlin
+* Android Studio
+* Material Design
 
-result = process_meeting_text(
-    stt_raw="검색 속도가 느린 것 같아요 그래서 확인이 필요합니다",
-    ocr_text="회의 주제: 검색 성능 개선",
-    title="검색 개선 회의"
-)
+## Backend
 
-print(result)
+* Spring Boot
+* Java
+* REST API
+
+## AI
+
+* OpenAI GPT
+* OCR
+* STT
+
+## Database
+
+* MySQL
+
+## Infrastructure
+
+* GitHub
+* Git
+* Postman
+
+---
+
+# 📁 프로젝트 구조
+
+```text
+MOA
+├── Android
+│   ├── Login
+│   ├── Folder
+│   ├── Meeting
+│   ├── Upload
+│   └── AI Summary
+│
+├── Backend
+│   ├── Controller
+│   ├── Service
+│   ├── Repository
+│   ├── Entity
+│   └── Config
+│
+├── AI
+│   ├── OCR
+│   ├── STT
+│   └── GPT Analysis
+│
+└── Database
+    └── MySQL
 ```
 
 ---
 
-## 🚧 현재 구현 상태
+# 🚀 기대 효과
 
-| 기능            | 상태   |
-| ------------- | ---- |
-| STT (Whisper) | 예정   |
-| OCR           | 예정   |
-| LLM 요약        | ✅ 구현 |
-| 전처리           | ✅ 구현 |
-| API 서버        | 일부   |
-| DB            | 예정   |
+* 회의록 작성 시간 감소
+* 업무 생산성 향상
+* 회의 정보 관리 효율화
+* 모바일 기반 회의 관리 지원
+* AI 기반 의사결정 지원
 
 ---
 
-## 🔥 핵심 설계 특징
+# 👥 팀 소개
 
-* **멀티모달 처리 (음성 + 이미지)**
-* **프레임워크 독립적인 AI 파이프라인**
-* **전처리 최소화 → LLM 중심 구조**
-* **확장 가능한 계층형 구조 (ai / service / repository 분리)**
+## 연대기팀
 
----
-
-## 📌 향후 계획
-
-* Whisper STT 실제 연동
-* OCR 정확도 개선
-* 실시간 자막 기능
-* Android 앱 연동
-* DB 저장 및 조회 기능 구현
+| 이름  | 역할                         |
+| --- | -------------------------- |
+| 김민서 | Android Frontend / UI · UX |
+| 팀원  | Backend                    |
+| 팀원  | AI                         |
+| 팀원  | Database                   |
 
 ---
 
-## 👥 역할 분담 (예시)
+# 📷 주요 화면
 
-| 역할            | 담당 |
-| ------------- | -- |
-| AI (LLM, 전처리) | 본인 |
-| STT           | 팀원 |
-| OCR           | 팀원 |
-| Backend API   | 팀원 |
-| Android 앱     | 팀원 |
+* 로그인
+* 회원가입
+* 폴더 관리
+* 회의록 업로드
+* AI 요약 결과
+* 회의록 상세 조회
+
+(프로젝트 화면 이미지 추가 예정)
 
 ---
 
-## 📌 한 줄 정리
+# 🎓 Capstone Design Project
 
-> MOA Backend는 **회의 데이터를 AI로 분석하여 자동으로 회의록을 생성하는 시스템의 핵심 엔진**이다.
+한성대학교 모바일소프트웨어트랙 캡스톤디자인 프로젝트
+
+MOA는 AI 기반 회의록 자동 생성 및 관리 서비스를 목표로 개발되었습니다.
+
+---
+
+## 📌 한 줄 소개
+
+> "회의를 기록하는 시간을 줄이고, 회의의 가치를 높이다."
+>
+> MOA (Meeting Organizer Assistant)
