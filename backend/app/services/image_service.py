@@ -5,6 +5,7 @@ image_service.py
 
 역할
 - 업로드된 이미지 또는 PDF 파일 저장
+- 업로드된 이미지/PDF 파일 메타데이터 uploaded_files 테이블에 저장
 - 이미지 전처리
 - PDF 파일은 페이지별 이미지로 변환
 - OCR 수행
@@ -20,6 +21,8 @@ image_service
 meeting_repository
     ↓
 file_manager
+    ↓
+uploaded_file_repository
     ↓
 preprocess / pdf_converter
     ↓
@@ -43,6 +46,7 @@ PDF 원본 저장
 → PDF를 페이지별 PNG로 변환
 → 각 페이지 이미지 OCR
 → OCR 결과를 합쳐서 image 테이블에 1개 row로 저장
+→ uploaded_files 테이블에는 PDF 원본 파일 정보 저장
 """
 
 from __future__ import annotations
@@ -57,10 +61,65 @@ from ai.image_ocr import process_image_by_type
 from models.user_model import User
 from repositories.image_repository import create_image
 from repositories.meeting_repository import get_meeting_by_id_and_user_id
+from repositories.uploaded_file_repository import create_uploaded_file
 from schemas.image_schema import ImageCreate, ImageResponse, ImageUploadResponse
+from schemas.uploaded_file_schema import UploadedFileCreate
 from storage.file_manager import save_image_file
 from utils.pdf_converter import convert_pdf_to_images
 from utils.preprocess import preprocess_image_file
+
+
+def _get_file_size_bytes(file_path: str) -> int | None:
+    """
+    파일 크기를 byte 단위로 반환한다.
+
+    파일이 없거나 확인할 수 없는 경우 None을 반환한다.
+    """
+
+    try:
+        return Path(file_path).stat().st_size
+    except Exception:
+        return None
+
+
+def _get_original_filename(upload_file: UploadFile) -> str:
+    """
+    업로드 원본 파일명을 안전하게 추출한다.
+
+    클라이언트에 따라 파일 경로가 섞여 들어올 가능성이 있으므로
+    Path(...).name으로 파일명만 사용한다.
+    """
+
+    return Path(upload_file.filename or "unknown_image_file").name
+
+
+def _create_image_file_metadata(
+    db: Session,
+    meeting_id: int,
+    upload_file: UploadFile,
+    saved_path: str,
+    file_type: str,
+) -> None:
+    """
+    uploaded_files 테이블에 이미지/PDF 파일 메타데이터를 저장한다.
+
+    file_type
+    ---------
+    - image
+    - pdf
+    """
+
+    create_uploaded_file(
+        db=db,
+        file_data=UploadedFileCreate(
+            meeting_id=meeting_id,
+            original_name=_get_original_filename(upload_file),
+            saved_path=str(saved_path),
+            file_type=file_type,
+            mime_type=upload_file.content_type,
+            size_bytes=_get_file_size_bytes(saved_path),
+        ),
+    )
 
 
 def _is_pdf_file(file_path: str, upload_file: UploadFile | None = None) -> bool:
@@ -277,11 +336,11 @@ def _process_single_image(
 
     이미지인 경우
     ------------
-    저장 → 전처리 → OCR → DB 저장
+    저장 → uploaded_files 저장 → 전처리 → OCR → image DB 저장
 
     PDF인 경우
     ---------
-    저장 → 페이지별 이미지 변환 → 페이지별 OCR → 결과 합치기 → DB 저장
+    저장 → uploaded_files 저장 → 페이지별 이미지 변환 → 페이지별 OCR → 결과 합치기 → image DB 저장
     """
 
     if not upload_file.filename:
@@ -308,12 +367,30 @@ def _process_single_image(
     )
 
     if is_pdf:
+        # PDF 원본 파일 메타데이터 저장
+        _create_image_file_metadata(
+            db=db,
+            meeting_id=meeting_id,
+            upload_file=upload_file,
+            saved_path=saved_path,
+            file_type="pdf",
+        )
+
         return _process_pdf_file(
             db=db,
             meeting_id=meeting_id,
             saved_path=saved_path,
             image_type=image_type,
         )
+
+    # 이미지 원본 파일 메타데이터 저장
+    _create_image_file_metadata(
+        db=db,
+        meeting_id=meeting_id,
+        upload_file=upload_file,
+        saved_path=saved_path,
+        file_type="image",
+    )
 
     return _process_image_file(
         db=db,
@@ -339,8 +416,9 @@ def process_uploaded_image(
     --------
     1. 현재 로그인한 사용자의 회의인지 확인
     2. 이미지 또는 PDF 파일 1개 처리
-    3. image DB 저장
-    4. ImageUploadResponse 반환
+    3. uploaded_files DB 저장
+    4. image DB 저장
+    5. ImageUploadResponse 반환
     """
 
     meeting = get_meeting_by_id_and_user_id(
@@ -379,6 +457,7 @@ def process_uploaded_image_files(
     - upload_router에서 files: list[UploadFile]로 받은 파일 목록을 처리
     - 현재 로그인한 사용자의 회의인지 확인
     - 각 파일을 사용자/회의별 폴더에 저장
+    - uploaded_files에 파일 메타데이터 저장
     - 이미지 파일이면 기존 OCR 수행
     - PDF 파일이면 페이지별 이미지 변환 후 OCR 수행
     - 이미지별 image DB 저장

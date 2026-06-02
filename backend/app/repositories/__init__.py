@@ -72,6 +72,11 @@ from .action_item_repository import (
     delete_action_items_by_meeting_id,
 )
 
+from .uploaded_file_repository import (
+    create_uploaded_file,
+    get_uploaded_files_by_meeting_id,
+    get_uploaded_files_by_meeting_id_and_type,
+)
 __all__ = [
      # user
     "create_user",
@@ -125,4 +130,9 @@ __all__ = [
     "update_action_item",
     "delete_action_item",
     "delete_action_items_by_meeting_id",
+
+    #uploaded_file_repository
+    "create_uploaded_file",
+    "get_uploaded_files_by_meeting_id",
+    "get_uploaded_files_by_meeting_id_and_type",
 ]

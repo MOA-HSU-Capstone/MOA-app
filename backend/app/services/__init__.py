@@ -74,6 +74,11 @@ from .action_item_service import (
 # stt
 from .stt_service import transcribe_audio_file
 
+#file
+from .file_service import (
+    get_meeting_uploaded_files,
+)
+
 
 __all__ = [
     # auth
@@ -125,4 +130,7 @@ __all__ = [
 
     # stt
     "transcribe_audio_file",
+
+    #file_service
+    "get_meeting_uploaded_files",
 ]

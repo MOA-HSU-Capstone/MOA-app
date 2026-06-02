@@ -29,6 +29,7 @@ from routers import (
     decision_router,
     action_item_router,
     folder_router,
+    file_router,
 )
 from storage.upload_paths import ensure_base_upload_dirs
 
@@ -63,9 +64,8 @@ def on_startup() -> None:
     ----
     - 이미 존재하는 테이블은 다시 생성하지 않는다.
     - 이미 존재하는 폴더는 다시 생성하지 않는다.
-    - User, Meeting, Transcript, Image, Summary 모델이
-      Base에 등록되어 있어야 테이블이 생성된다.
-    - 따라서 models/__init__.py에서 각 모델을 import하고 있어야 한다.
+    - 새로 추가한 UploadedFile 모델도 Base에 등록되어 있어야 한다.
+    - 따라서 models/__init__.py에서 UploadedFile을 import해야 한다.
     """
 
     # SQLAlchemy Base에 등록된 모든 테이블 생성
@@ -135,8 +135,13 @@ app.include_router(meeting_router)
 
 # 업로드 관련 API
 # - 오디오 업로드
-# - 이미지 업로드
+# - 이미지/PDF 업로드
 app.include_router(upload_router)
+
+# 파일 조회 관련 API
+# - GET /meetings/{meeting_id}/files
+# - 회의 상세 화면의 파일 탭에서 사용
+app.include_router(file_router)
 
 # 결정사항 관련 API
 # - 결정사항 하나 추가
