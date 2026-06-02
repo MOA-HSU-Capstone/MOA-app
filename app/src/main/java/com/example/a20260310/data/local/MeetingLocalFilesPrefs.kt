@@ -9,7 +9,7 @@ import com.google.gson.reflect.TypeToken
 /**
  * 회의 생성·첨부 플로우에서 저장하는 로컬 파일 목록 (SharedPreferences + Gson).
  *
- * - 제목 기준(초안 단계): `"${title}_files_json"`
+ * - 제목 기준 (초안 단계): `"${title}_files_json"`
  * - 백엔드 회의 ID 확정 후: `"meeting_${id}_files_json"` (상세 화면은 이 키만 사용해 동일 제목 다른 회의와 섞이지 않게 함)
  */
 object MeetingLocalFilesPrefs {
@@ -53,7 +53,7 @@ object MeetingLocalFilesPrefs {
     }
 
     /**
-     * 제목 키와(백엔드 ID가 있으면) 회의 ID 키 모두에 동일 목록을 반영한다.
+     * 제목 키와 (백엔드 ID 가 있으면) 회의 ID 키 모두에 동일 목록을 반영한다.
      */
     fun appendOrUpdate(
         context: Context,
