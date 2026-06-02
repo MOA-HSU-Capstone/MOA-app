@@ -3,6 +3,7 @@
 한성대학교 모바일소프트웨어트랙 캡스톤디자인 **연대기팀** 프로젝트
 
 <img width="1061" alt="MOA" src="https://github.com/user-attachments/assets/075a8ff8-c62d-4dd8-80c0-d2ff33d5018d" />
+
 <div align="center">
   <iframe src="https://htmlpreview.github.io/?https://github.com/AllforMinseo/MOA/blob/main/moa_card.html" width="820" height="620" frameborder="0" scrolling="no"></iframe>
 </div>
