@@ -55,7 +55,6 @@ import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.launch
 import java.io.File
-import java.util.LinkedHashSet
 import java.util.Locale
 
 class DetailFragment : Fragment(R.layout.fragment_detail) {
@@ -541,7 +540,7 @@ class DetailFragment : Fragment(R.layout.fragment_detail) {
         bindMeetingFileList()
     }
 
-    /** API 로 받은 경로 + 생성 플로우 세션 캐시 (동일 회의) 병합 */
+    /** API로 받은 경로 + 생성 플로우 세션 캐시(동일 회의) 병합 */
     private fun resolvedServerFilePaths(): List<String> {
         val fromApi =
             viewModel.uiState.value.meeting
@@ -558,7 +557,7 @@ class DetailFragment : Fragment(R.layout.fragment_detail) {
     }
 
     /**
-     * 서버 경로 (API·세션) + 이 회의 전용 로컬 목록 (`meeting_{id}_files_json`).
+     * 서버 경로(API·세션) + 이 회의 전용 로컬 목록(`meeting_{id}_files_json` 또는 제목 키).
      */
     private fun bindMeetingFileList() {
         val rows = mergedMeetingFileRows()
@@ -592,30 +591,22 @@ class DetailFragment : Fragment(R.layout.fragment_detail) {
     }
 
     /**
-     * ⭐️ 수정 부분:
-     * [meetingId] 가 있으면 `meeting_{id}_files_json` 로만 읽음 (제목 키 사용 안 함).
-     * 예전 데이터는 제목 키에서 한 번만 ID 키로 복사.
-     * [meetingId] 가 없으면 초안용 제목 키만 사용.
+     * [meetingId]가 있으면 `meeting_{id}_files_json`만 사용(다른 회의와 분리).
+     * 예전 데이터는 제목 키에서 한 번만 ID 키로 복사한다.
+     * [meetingId]가 없으면 초안용 제목 키만 사용한다.
      */
     private fun loadMeetingFilesFromLocalPrefs(): List<MeetingFileRow> {
         val prefs = MeetingLocalFilesPrefs.prefs(requireContext())
-
         if (meetingId > 0) {
-            // 이전 버전 호환: 제목 키에 데이터가 있고 ID 키가 비어 있으면 한 번 복사
             MeetingLocalFilesPrefs.copyTitleKeyToMeetingIdIfEmpty(
                 requireContext(),
                 gson,
                 meetingTitle,
                 meetingId,
             )
-
             val idKey = MeetingLocalFilesPrefs.meetingIdKey(meetingId) ?: return emptyList()
-
-            // ⭐️ 제목 키를 전혀 쓰지 않고 meetingIdKey 만으로 읽음
             return MeetingLocalFilesPrefs.readList(prefs, gson, idKey)
         }
-
-        // 회의 ID 가 없는 초안 상태: 제목 키만 사용
         return MeetingLocalFilesPrefs.readList(
             prefs,
             gson,
