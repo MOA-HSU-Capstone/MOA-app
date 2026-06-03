@@ -24,32 +24,32 @@ MOA(Multimodal Orchestrated Assistant **(모아)** — 회의 음성·문서·�
 
 ## 기술 스택
 
-배지를 클릭하면 해당 기술의 공식 문서 또는 제품 페이지로 이동합니다.
+뱃지는 [Shields.io](https://shields.io/) · [Simple Icons](https://simpleicons.org/) 조합([markdown-badges](https://github.com/Ileriayo/markdown-badges) 스타일)입니다. 클릭 시 해당 기술의 공식 문서 또는 제품 페이지로 이동합니다.
 
 ### Android 클라이언트 (`:app` 모듈)
 
 [![Android](https://img.shields.io/badge/Android-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com)
-[Kotlin](https://kotlinlang.org)
-[Jetpack Navigation](https://developer.android.com/guide/navigation)
-[Lifecycle](https://developer.android.com/topic/libraries/architecture/lifecycle)
-[WorkManager](https://developer.android.com/develop/background-work/background-tasks/persistent/getting-started)
-[Retrofit](https://square.github.io/retrofit/)
-[OkHttp](https://square.github.io/okhttp/)
-[Gson](https://github.com/google/gson)
-[Coroutines](https://kotlinlang.org/docs/coroutines-overview.html)
-[ML Kit Doc Scanner](https://developers.google.com/ml-kit/vision/doc-scanner)
-[Material](https://m3.material.io/)
-[Gradle](https://gradle.org/)
+[![Kotlin](https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
+[![Jetpack Navigation](https://img.shields.io/badge/Jetpack_Navigation-4285F4?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com/guide/navigation)
+[![Lifecycle](https://img.shields.io/badge/Lifecycle-4285F4?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com/topic/libraries/architecture/lifecycle)
+[![WorkManager](https://img.shields.io/badge/WorkManager-4285F4?style=for-the-badge&logo=android&logoColor=white)](https://developer.android.com/develop/background-work/background-tasks/persistent/getting-started)
+[![Retrofit](https://img.shields.io/badge/Retrofit-FF6F00?style=for-the-badge&logo=square&logoColor=white)](https://square.github.io/retrofit/)
+[![OkHttp](https://img.shields.io/badge/OkHttp-4285F4?style=for-the-badge&logo=okhttp&logoColor=white)](https://square.github.io/okhttp/)
+[![Gson](https://img.shields.io/badge/Gson-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://github.com/google/gson)
+[![Coroutines](https://img.shields.io/badge/Coroutines-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org/docs/coroutines-overview.html)
+[![ML Kit Doc Scanner](https://img.shields.io/badge/ML_Kit_Doc_Scanner-FF6F00?style=for-the-badge&logo=google&logoColor=white)](https://developers.google.com/ml-kit/vision/doc-scanner)
+[![Material](https://img.shields.io/badge/Material-757575?style=for-the-badge&logo=materialdesign&logoColor=white)](https://m3.material.io/)
+[![Gradle](https://img.shields.io/badge/Gradle-02303A?style=for-the-badge&logo=gradle&logoColor=white)](https://gradle.org/)
 
 ### 백엔드·AI (시스템 구성)
 
-[Python](https://www.python.org/)
-[FastAPI](https://fastapi.tiangolo.com/)
-[Uvicorn](https://www.uvicorn.org/)
-[SQLite](https://www.sqlite.org/)
-[JWT](https://jwt.io/)
-[OpenAI](https://platform.openai.com/)
-[Google Cloud](https://cloud.google.com/speech-to-text)
+[![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Uvicorn](https://img.shields.io/badge/Uvicorn-4051B5?style=for-the-badge&logo=uvicorn&logoColor=white)](https://www.uvicorn.org/)
+[![SQLite](https://img.shields.io/badge/SQLite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)](https://www.sqlite.org/)
+[![JWT](https://img.shields.io/badge/JWT-000000?style=for-the-badge&logo=jsonwebtokens&logoColor=white)](https://jwt.io/)
+[![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=openai&logoColor=white)](https://platform.openai.com/)
+[![Google Cloud Speech](https://img.shields.io/badge/Google_Cloud_Speech-4285F4?style=for-the-badge&logo=googlecloud&logoColor=white)](https://cloud.google.com/speech-to-text)
 
 ---
 
