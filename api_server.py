@@ -2,8 +2,8 @@ import json
 import os
 import uuid
 import threading
-import requests 
-import time 
+import requests
+import time
 from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, request, jsonify
 from flask_cors import CORS #노드 접속 가능
@@ -46,7 +46,6 @@ def upload_transcript():
 
     file = request.files["file"]
     task_id = str(uuid.uuid4())
-
     filename = secure_filename(file.filename)
     file_path = f"./{task_id}_{filename}"
     file.save(file_path)
@@ -60,23 +59,23 @@ def upload_transcript():
 
     return jsonify({"task_id": task_id})
 
-# STT 처리 (들여쓰기 교정 완료 버전)
+# STT 처리 (이름 및 용어 고정 + 소음 최적화 버전)
 def run_stt(task_id, file_path):
     try:
         print(f"🔥 STT 시작: {task_id}")
 
-       # 1. Whisper 분석
+        # 1. Whisper 분석 (initial_prompt에 이름 및 고유 용어 주입하여 고정 출력 유도)
         segments, info = model.transcribe(
             file_path,
             language="ko",
             beam_size=1,
             best_of=1,
             vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=800, speech_pad_ms=300),
-            no_speech_threshold=0.6,
-            log_prob_threshold=-1.0, 
-            condition_on_previous_text=False,
-            initial_prompt="이 회의는 AI 회의록 시스템입니다. 영단어는 발음대로 적지 말고 영어 원문 그대로 표[>
+            vad_parameters=dict(min_silence_duration_ms=800, speech_pad_ms=400),
+            no_speech_threshold=0.5,
+            log_prob_threshold=-0.8,
+            condition_on_previous_text=True,
+            initial_prompt="이 회의는 AI 회의록 시스템 MOA 프로젝트 팀 회의입니다."
         )
 
         result_text = " ".join(
@@ -94,7 +93,7 @@ def run_stt(task_id, file_path):
 
         print(f"✅ 완료: {task_id}")
 
-       # 3. 벡엔드 서버(34.50.37.85:8000/)로 전송
+        # 3. 벡엔드 서버(34.50.37.85:8000/)로 전송
         callback_url = "http://34.50.37.85:8000/api/stt-callback/"
         payload = {
             "task_id": task_id,
@@ -106,14 +105,13 @@ def run_stt(task_id, file_path):
         try:
             # 타임아웃 5초 설정 (상대 서버 응답 대기 방지)
             response = requests.post(callback_url, json=payload, timeout=5)
-
             if response.status_code in [200, 404]:
                 print(f"📡 [Task {task_id}] 서버(8000)로 전송 성공!")
             else:
                 print(f"⚠️ [Task {task_id}] 서버 응답 대기 중 (코드: {response.status_code})")
         except Exception:
-            # 연결  에러시 문구 수정
-             print(f"📡 [Task {task_id}] 데이터 전달 시도 완료 (백엔드 수신 대기)")
+            # 연결 에러시 문구 수정
+            print(f"📡 [Task {task_id}] 데이터 전달 시도 완료 (백엔드 수신 대기)")
 
     except Exception as e:
         with lock:
@@ -155,4 +153,4 @@ def get_result(task_id):
 
 # 실행
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5000
