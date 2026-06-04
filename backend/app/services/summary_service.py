@@ -133,6 +133,96 @@ def _get_meeting_attendees(meeting: Any) -> list[str]:
     return attendees_text_to_list(getattr(meeting, "attendees", None))
 
 
+def _normalize_assignee_by_attendees(
+    assignee: Any,
+    attendees: list[str],
+) -> str:
+    """
+    LLM이 추출한 담당자를 참석자 목록 기준으로 보정한다.
+
+    목적
+    ----
+    - STT 발음/인식 오류로 생긴 잘못된 담당자명을 줄인다.
+    - 참석자 목록에 없는 애매한 이름은 저장하지 않는다.
+
+    예시
+    ----
+    참석자: ["김민서", "신현규", "박민혁", "오형채"]
+
+    "김민서" -> "김민서"
+    "민서" -> "김민서"
+    "민선" -> ""
+    "영" -> ""
+    "휘팀" -> ""
+    """
+
+    if not isinstance(assignee, str):
+        return ""
+
+    value = assignee.strip()
+
+    if not value:
+        return ""
+
+    if not attendees:
+        return value
+
+    invalid_values = {
+        "없음",
+        "미정",
+        "미지정",
+        "전체",
+        "전원",
+        "팀",
+        "각자",
+        "참석자",
+        "담당자",
+        "담당자 미정",
+    }
+
+    if value in invalid_values:
+        return ""
+
+    # 한 글자 담당자는 STT 오인식 가능성이 높으므로 저장하지 않는다.
+    if len(value) <= 1:
+        return ""
+
+    # 참석자 이름과 완전 일치하면 그대로 사용
+    if value in attendees:
+        return value
+
+    # "민서"처럼 참석자 이름 일부와 명확히 일치하는 경우 보정
+    matched_attendees = [
+        attendee
+        for attendee in attendees
+        if value in attendee or attendee in value
+    ]
+
+    if len(matched_attendees) == 1:
+        return matched_attendees[0]
+
+    # 성을 제외한 이름과 일치하는 경우 보정
+    # 예: 김민서 -> 민서
+    matched_by_given_name: list[str] = []
+
+    for attendee in attendees:
+        attendee = attendee.strip()
+
+        if not attendee:
+            continue
+
+        given_name = attendee[1:] if len(attendee) >= 3 else attendee
+
+        if value == given_name:
+            matched_by_given_name.append(attendee)
+
+    if len(matched_by_given_name) == 1:
+        return matched_by_given_name[0]
+
+    # 여기까지 명확히 매칭되지 않으면 추측하지 않는다.
+    return ""
+
+
 # -----------------------------------------
 # Summary 결과 정리 유틸
 # -----------------------------------------
@@ -296,7 +386,8 @@ def create_summary_for_meeting(
     4. LLM 요약 생성
     5. summaries 테이블에 요약 본문 upsert
     6. 기존 decisions / action_items는 삭제 후 새로 저장
-    7. 응답은 summary, decisions, action_items를 구조화해서 반환
+    7. action_items의 담당자는 참석자 목록 기준으로 보정
+    8. 응답은 summary, decisions, action_items를 구조화해서 반환
     """
 
     meeting = get_meeting_by_id_and_user_id(
@@ -390,8 +481,14 @@ def create_summary_for_meeting(
         due_date = item.get("due_date", "")
 
         task = task.strip() if isinstance(task, str) else ""
-        assignee = assignee.strip() if isinstance(assignee, str) else ""
         due_date = due_date.strip() if isinstance(due_date, str) else ""
+
+        # 담당자는 참석자 목록 기준으로 한 번 더 보정한다.
+        # 참석자 목록에 없는 이상한 값은 빈 문자열로 저장된다.
+        assignee = _normalize_assignee_by_attendees(
+            assignee=assignee,
+            attendees=attendees,
+        )
 
         if not task:
             continue
