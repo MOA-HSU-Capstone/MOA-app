@@ -16,9 +16,9 @@ class RecordingRepositoryImpl : RecordingRepository {
     override fun start(outputPath: String) {
         mediaRecorder =
             MediaRecorder().apply {
-                // MIC: 원음에 가깝게 / VOICE_RECOGNITION: 음성·STT에 맞춘 AGC·노이즈 억제
-                // 업로드 후 STT이므로 음성 명료도 우선해 VOICE_RECOGNITION 사용
-                setAudioSource(MediaRecorder.AudioSource.VOICE_RECOGNITION)
+                // MIC: 원음·상대적으로 높은 입력 레벨 / VOICE_RECOGNITION: STT용 AGC·노이즈 억제
+                // 청감·레벨 우선으로 MIC 사용(환경 노이즈는 더 실릴 수 있음)
+                setAudioSource(MediaRecorder.AudioSource.MIC)
                 setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
                 setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
                 setAudioEncodingBitRate(AUDIO_BIT_RATE)
