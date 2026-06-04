@@ -6,7 +6,7 @@ import requests
 import time 
 from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, request, jsonify
-from flask_cors import CORS 
+from flask_cors import CORS #노드 접속 가능
 from faster_whisper import WhisperModel
 from werkzeug.utils import secure_filename
 
