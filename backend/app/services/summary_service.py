@@ -122,6 +122,17 @@ def _build_ocr_payload(images: list[Any]) -> list[dict[str, Any]]:
     return ocr_items
 
 
+def _get_meeting_attendees(meeting: Any) -> list[str]:
+    """
+    Meeting ORM 객체에 저장된 attendees 값을 LLM 입력용 list[str]로 변환한다.
+
+    현재 meeting_service.py 기준으로 attendees는 DB에
+    "홍길동,김철수" 같은 문자열로 저장된다.
+    """
+
+    return attendees_text_to_list(getattr(meeting, "attendees", None))
+
+
 # -----------------------------------------
 # Summary 결과 정리 유틸
 # -----------------------------------------
@@ -149,7 +160,7 @@ def _normalize_summary_result(summary_result: dict[str, Any]) -> dict[str, Any]:
     action_items = summary_result.get("action_items", [])
 
     if not isinstance(summary_text, str):
-        summary_text = str(summary_text)
+        summary_text = str(summary_text) if summary_text is not None else ""
 
     if not isinstance(decisions, list):
         decisions = []
@@ -158,7 +169,7 @@ def _normalize_summary_result(summary_result: dict[str, Any]) -> dict[str, Any]:
         action_items = []
 
     return {
-        "summary": summary_text,
+        "summary": summary_text.strip(),
         "decisions": decisions,
         "action_items": action_items,
     }
@@ -281,10 +292,11 @@ def create_summary_for_meeting(
     --------
     1. 현재 로그인한 사용자의 회의인지 확인
     2. transcript / image OCR 데이터 조회
-    3. LLM 요약 생성
-    4. summaries 테이블에 요약 본문 upsert
-    5. 기존 decisions / action_items는 삭제 후 새로 저장
-    6. 응답은 summary, decisions, action_items를 구조화해서 반환
+    3. 회의 참석자 목록을 payload에 포함
+    4. LLM 요약 생성
+    5. summaries 테이블에 요약 본문 upsert
+    6. 기존 decisions / action_items는 삭제 후 새로 저장
+    7. 응답은 summary, decisions, action_items를 구조화해서 반환
     """
 
     meeting = get_meeting_by_id_and_user_id(
@@ -305,13 +317,15 @@ def create_summary_for_meeting(
     if not stt_items and not ocr_items:
         return None
 
+    attendees = _get_meeting_attendees(meeting)
+
     llm_payload = {
         "meeting": {
             "meeting_id": meeting.id,
             "title": meeting.title,
             "meeting_date": getattr(meeting, "meeting_date", None),
             "meeting_time": getattr(meeting, "meeting_time", None),
-            "attendees": attendees_text_to_list(getattr(meeting, "attendees", None)),
+            "attendees": attendees,
             "description": getattr(meeting, "description", None),
         },
         "stt": stt_items,
@@ -371,7 +385,13 @@ def create_summary_for_meeting(
         if not isinstance(item, dict):
             continue
 
-        task = (item.get("task") or "").strip()
+        task = item.get("task", "")
+        assignee = item.get("assignee", "")
+        due_date = item.get("due_date", "")
+
+        task = task.strip() if isinstance(task, str) else ""
+        assignee = assignee.strip() if isinstance(assignee, str) else ""
+        due_date = due_date.strip() if isinstance(due_date, str) else ""
 
         if not task:
             continue
@@ -380,8 +400,8 @@ def create_summary_for_meeting(
             db=db,
             meeting_id=meeting_id,
             task=task,
-            assignee=item.get("assignee"),
-            due_date=item.get("due_date"),
+            assignee=assignee,
+            due_date=due_date,
         )
 
         saved_action_items.append(saved_action_item)

@@ -52,6 +52,7 @@ uploads/
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
@@ -98,6 +99,42 @@ def _get_original_filename(upload_file: UploadFile) -> str:
     """
 
     return Path(upload_file.filename or "unknown_audio_file").name
+
+
+def _get_meeting_attendees(meeting: Any) -> list[str]:
+    """
+    Meeting ORM 객체에 저장된 attendees 값을 LLM 입력용 list[str]로 변환한다.
+
+    현재 meeting_service.py 기준으로 attendees는 DB에
+    "홍길동,김철수" 같은 문자열로 저장된다.
+
+    변환 예시
+    --------
+    "홍길동,김철수" -> ["홍길동", "김철수"]
+
+    혹시 나중에 attendees가 list 형태로 넘어오는 경우도 대비한다.
+    """
+
+    attendees = getattr(meeting, "attendees", None)
+
+    if not attendees:
+        return []
+
+    if isinstance(attendees, list):
+        return [
+            str(attendee).strip()
+            for attendee in attendees
+            if str(attendee).strip()
+        ]
+
+    if isinstance(attendees, str):
+        return [
+            attendee.strip()
+            for attendee in attendees.split(",")
+            if attendee.strip()
+        ]
+
+    return []
 
 
 def _create_audio_file_metadata(
@@ -329,6 +366,7 @@ def process_uploaded_audio_files_and_create_summary(
     - 파일별 transcript 생성
     - 이번 요청에서 생성된 transcript들을 하나의 combined_transcript로 합치기
     - combined_transcript를 LLM 요약 함수에 한 번만 전달
+    - 회의 참석자 목록을 LLM에 함께 전달하여 action_items.assignee 보정에 사용
     - 최종 summary는 meeting_id 기준으로 1개만 유지
 
     Returns
@@ -398,7 +436,10 @@ def process_uploaded_audio_files_and_create_summary(
             detail="STT 결과가 비어 있어 회의 요약을 생성할 수 없습니다.",
         )
 
-    # 8. LLM 요약 함수 한 번만 호출
+    # 8. 참석자 목록 추출
+    attendees = _get_meeting_attendees(meeting)
+
+    # 9. LLM 요약 함수 한 번만 호출
     #
     # 현재는 오디오만 처리하므로 ocr_text는 빈 문자열로 전달한다.
     # 나중에 OCR 결과까지 합칠 경우 ocr_text에 이미지 OCR 내용을 넣으면 된다.
@@ -407,6 +448,7 @@ def process_uploaded_audio_files_and_create_summary(
             stt_text=combined_transcript,
             ocr_text="",
             title=meeting.title,
+            attendees=attendees,
         )
 
     except Exception as e:
@@ -415,7 +457,7 @@ def process_uploaded_audio_files_and_create_summary(
             detail=f"회의 요약 생성 중 오류가 발생했습니다: {str(e)}",
         )
 
-    # 9. SummaryCreate 생성
+    # 10. SummaryCreate 생성
     #
     # SummaryCreate.content가 str 타입이므로,
     # dict 형태인 summary_result를 JSON 문자열로 변환해서 저장한다.
@@ -424,13 +466,13 @@ def process_uploaded_audio_files_and_create_summary(
         content=safe_json_dumps(summary_result),
     )
 
-    # 10. Summary 1개 DB 저장 또는 갱신
+    # 11. Summary 1개 DB 저장 또는 갱신
     #
     # create_summary()를 사용하면 같은 meeting_id에 대해
     # summary가 여러 개 생길 수 있으므로 upsert_summary()를 사용한다.
     meeting_summary = upsert_summary(db, summary_data)
 
-    # 11. 최종 summary 응답 반환
+    # 12. 최종 summary 응답 반환
     return SummaryResponse.model_validate(meeting_summary)
 
 
