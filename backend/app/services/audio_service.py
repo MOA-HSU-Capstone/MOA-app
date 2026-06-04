@@ -5,6 +5,7 @@ audio_service.py
 
 역할
 - 업로드된 오디오 파일 저장
+- 업로드된 오디오 파일 메타데이터 uploaded_files 테이블에 저장
 - 오디오 전처리
 - STT 서버 전송 전 wav 변환
 - STT 수행
@@ -22,6 +23,8 @@ audio_service
 meeting_repository
     ↓
 file_manager
+    ↓
+uploaded_file_repository
     ↓
 preprocess
     ↓
@@ -48,30 +51,81 @@ uploads/
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
+from ai.meeting_summarizer import summarize_meeting_from_text
 from models.user_model import User
 from repositories.meeting_repository import get_meeting_by_id_and_user_id
-from repositories.transcript_repository import create_transcript
 from repositories.summary_repository import upsert_summary
-
-from schemas.transcript_schema import TranscriptCreate, TranscriptResponse
+from repositories.transcript_repository import create_transcript
+from repositories.uploaded_file_repository import create_uploaded_file
 from schemas.summary_schema import SummaryCreate, SummaryResponse
-
+from schemas.transcript_schema import TranscriptCreate, TranscriptResponse
+from schemas.uploaded_file_schema import UploadedFileCreate
 from services.stt_service import transcribe_audio_file
 from storage.file_manager import save_audio_file
 from utils.audio_converter import convert_audio_to_wav
 from utils.audio_splitter import split_wav_file
 from utils.preprocess import (
-    preprocess_audio_file,
     normalize_transcript_text,
+    preprocess_audio_file,
     safe_json_dumps,
 )
 
-# combined_transcript는 이미 문자열이므로
-# summarize_meeting()이 아니라 summarize_meeting_from_text()를 사용한다.
-from ai.meeting_summarizer import summarize_meeting_from_text
+
+def _get_file_size_bytes(file_path: str) -> int | None:
+    """
+    파일 크기를 byte 단위로 반환한다.
+
+    파일이 없거나 확인할 수 없는 경우 None을 반환한다.
+    """
+
+    try:
+        return Path(file_path).stat().st_size
+    except Exception:
+        return None
+
+
+def _get_original_filename(upload_file: UploadFile) -> str:
+    """
+    업로드 원본 파일명을 안전하게 추출한다.
+
+    브라우저나 클라이언트에 따라 경로가 섞여 들어올 가능성을 줄이기 위해
+    Path(...).name으로 파일명만 사용한다.
+    """
+
+    return Path(upload_file.filename or "unknown_audio_file").name
+
+
+def _create_audio_file_metadata(
+    db: Session,
+    meeting_id: int,
+    upload_file: UploadFile,
+    saved_path: str,
+) -> None:
+    """
+    uploaded_files 테이블에 오디오 파일 메타데이터를 저장한다.
+
+    주의
+    ----
+    - 실제 오디오 파일 바이너리는 DB에 저장하지 않는다.
+    - DB에는 원본 파일명, 저장 경로, MIME 타입, 용량만 저장한다.
+    """
+
+    create_uploaded_file(
+        db=db,
+        file_data=UploadedFileCreate(
+            meeting_id=meeting_id,
+            original_name=_get_original_filename(upload_file),
+            saved_path=str(saved_path),
+            file_type="audio",
+            mime_type=upload_file.content_type,
+            size_bytes=_get_file_size_bytes(saved_path),
+        ),
+    )
 
 
 def _process_single_audio_to_transcript(
@@ -87,13 +141,14 @@ def _process_single_audio_to_transcript(
     --------
     1. 파일명 확인
     2. 현재 로그인한 사용자 기준 폴더에 오디오 파일 저장
-    3. 오디오 파일 기본 전처리
-    4. wav 변환
-    5. wav 파일을 5분 단위로 분할한 뒤 STT 수행
-    6. STT 결과 텍스트 정규화
-    7. STT 결과가 비어 있으면 저장하지 않고 None 반환
-    8. transcript DB 저장
-    9. TranscriptResponse 반환
+    3. 오디오 파일 메타데이터 uploaded_files 테이블에 저장
+    4. 오디오 파일 기본 전처리
+    5. wav 변환
+    6. wav 파일을 5분 단위로 분할한 뒤 STT 수행
+    7. STT 결과 텍스트 정규화
+    8. STT 결과가 비어 있으면 저장하지 않고 None 반환
+    9. transcript DB 저장
+    10. TranscriptResponse 반환
     """
 
     # 1. 파일명 확인
@@ -110,7 +165,18 @@ def _process_single_audio_to_transcript(
         meeting_id=meeting_id,
     )
 
-    # 3. 오디오 파일 기본 전처리
+    # 3. 오디오 파일 메타데이터 저장
+    #
+    # 파일 탭 조회 API(GET /meetings/{meeting_id}/files)에서
+    # 이 데이터를 사용한다.
+    _create_audio_file_metadata(
+        db=db,
+        meeting_id=meeting_id,
+        upload_file=upload_file,
+        saved_path=saved_path,
+    )
+
+    # 4. 오디오 파일 기본 전처리
     try:
         processed_path = preprocess_audio_file(saved_path)
 
@@ -120,7 +186,7 @@ def _process_single_audio_to_transcript(
             detail=f"오디오 파일을 찾을 수 없습니다: {str(e)}",
         )
 
-    # 4. STT 서버 전송 전 wav 변환
+    # 5. STT 서버 전송 전 wav 변환
     try:
         wav_path = convert_audio_to_wav(processed_path)
 
@@ -142,54 +208,54 @@ def _process_single_audio_to_transcript(
             detail=f"알 수 없는 오디오 변환 오류가 발생했습니다: {str(e)}",
         )
 
-# 5. 긴 wav 파일을 5분 단위로 분할한 뒤 STT 실행
+    # 6. 긴 wav 파일을 5분 단위로 분할한 뒤 STT 실행
     try:
         split_paths = split_wav_file(
-        wav_path=wav_path,
-        segment_seconds=300,
+            wav_path=wav_path,
+            segment_seconds=300,
         )
 
         transcript_parts: list[str] = []
 
         for index, split_path in enumerate(split_paths, start=1):
             print(
-            f"STT split file {index}/{len(split_paths)} = {split_path}",
-            flush=True,
-        )
+                f"STT split file {index}/{len(split_paths)} = {split_path}",
+                flush=True,
+            )
 
             part_text = transcribe_audio_file(split_path)
             part_text = normalize_transcript_text(part_text)
 
             if part_text:
-                 transcript_parts.append(
-                     f"[오디오 조각 {index}]\n{part_text}"
-            )
+                transcript_parts.append(
+                    f"[오디오 조각 {index}]\n{part_text}"
+                )
 
         transcript_text = "\n\n".join(transcript_parts)
 
     except Exception as e:
         raise HTTPException(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        detail=f"STT 처리 중 오류가 발생했습니다: {str(e)}",
-    )
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"STT 처리 중 오류가 발생했습니다: {str(e)}",
+        )
 
-    # 6. STT 결과 텍스트 정규화
+    # 7. STT 결과 텍스트 정규화
     transcript_text = normalize_transcript_text(transcript_text)
 
-    # 7. STT 결과가 비어 있으면 DB 저장하지 않음
+    # 8. STT 결과가 비어 있으면 DB 저장하지 않음
     if not transcript_text:
         return None
 
-    # 8. transcript 생성 스키마 작성
+    # 9. transcript 생성 스키마 작성
     transcript_data = TranscriptCreate(
         meeting_id=meeting_id,
         content=transcript_text,
     )
 
-    # 9. transcript DB 저장
+    # 10. transcript DB 저장
     transcript = create_transcript(db, transcript_data)
 
-    # 10. 응답 스키마 변환
+    # 11. 응답 스키마 변환
     return TranscriptResponse.model_validate(transcript)
 
 
@@ -209,7 +275,8 @@ def process_uploaded_audio(
     1. 현재 로그인한 사용자의 회의인지 확인
     2. 오디오 파일 1개 처리
     3. transcript DB 저장
-    4. TranscriptResponse 반환
+    4. uploaded_files DB 저장
+    5. TranscriptResponse 반환
     """
 
     # 1. 현재 로그인한 사용자의 회의인지 확인
@@ -257,9 +324,10 @@ def process_uploaded_audio_files_and_create_summary(
     - files: list[UploadFile] = File(...) 로 여러 오디오 파일 받기
     - 현재 로그인한 사용자의 회의인지 확인
     - 각 파일 저장
+    - 각 파일의 메타데이터 uploaded_files에 저장
     - 각 파일에 대해 STT 수행
     - 파일별 transcript 생성
-    - 모든 transcript를 하나의 combined_transcript로 합치기
+    - 이번 요청에서 생성된 transcript들을 하나의 combined_transcript로 합치기
     - combined_transcript를 LLM 요약 함수에 한 번만 전달
     - 최종 summary는 meeting_id 기준으로 1개만 유지
 
@@ -338,6 +406,7 @@ def process_uploaded_audio_files_and_create_summary(
         summary_result = summarize_meeting_from_text(
             stt_text=combined_transcript,
             ocr_text="",
+            title=meeting.title,
         )
 
     except Exception as e:

@@ -1,4 +1,4 @@
-package com.example.a20260310.ui.history
+package com.example.a20260310.ui.settings
 
 import android.os.Bundle
 import android.view.View
@@ -9,7 +9,7 @@ import com.example.a20260310.R
 import com.example.a20260310.data.auth.TokenManager
 import com.google.android.material.button.MaterialButton
 
-class HistoryFragment : Fragment(R.layout.fragment_history) {
+class SettingsFragment : Fragment(R.layout.fragment_settings) {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 

@@ -46,6 +46,12 @@ from .action_item_schema import (
     ActionItemResponse,
 )
 
+from .uploaded_file_schema import (
+    UploadedFileCreate,
+    UploadedFileResponse,
+    MeetingFilesResponse,
+)
+
 __all__ = [
     # user / auth
     "UserCreate",
@@ -89,4 +95,9 @@ __all__ = [
     "ActionItemCreate",
     "ActionItemUpdate",
     "ActionItemResponse",
+
+    #uploaded_file_schema
+    "UploadedFileCreate",
+    "UploadedFileResponse",
+    "MeetingFilesResponse",
 ]

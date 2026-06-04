@@ -3,6 +3,7 @@ package com.example.a20260310.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.a20260310.data.remote.dto.UploadedFileDto
 import com.example.a20260310.data.remote.dto.MeetingResponseDto
 import com.example.a20260310.data.remote.dto.SummaryDetailResponseDto
 import com.example.a20260310.data.remote.dto.SummaryUpdateRequest
@@ -15,7 +16,9 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.ResponseBody
 import retrofit2.HttpException
+import retrofit2.Response
 
 data class MeetingDetailUiState(
     val meeting: MeetingResponseDto? = null,
@@ -40,6 +43,11 @@ class DetailViewModel(
 
     private val _effects = Channel<MeetingDetailEffect>(Channel.BUFFERED)
     val effects = _effects.receiveAsFlow()
+
+    // DetailViewModel.kt
+
+    private val _meetingFiles = MutableStateFlow<List<UploadedFileDto>>(emptyList())
+    val meetingFiles: StateFlow<List<UploadedFileDto>> = _meetingFiles
 
     private fun emitFailure(e: Throwable) {
         viewModelScope.launch {
@@ -351,6 +359,19 @@ class DetailViewModel(
             emitFailure(e)
         }
     }
+
+    suspend fun getMeetingFiles(meetingId: Int): List<UploadedFileDto> {
+        return repository.getMeetingFiles(meetingId)
+    }
+
+    suspend fun downloadFile(meetingId: Int, fileId: Int): Response<ResponseBody> {
+        return repository.downloadFile(meetingId, fileId)
+    }
+
+    suspend fun viewFile(meetingId: Int, fileId: Int): Response<ResponseBody> {
+        return repository.viewFile(meetingId, fileId)
+    }
+
 }
 
 class DetailViewModelFactory(
@@ -363,4 +384,5 @@ class DetailViewModelFactory(
         }
         return DetailViewModel(meetingId) as T
     }
+
 }

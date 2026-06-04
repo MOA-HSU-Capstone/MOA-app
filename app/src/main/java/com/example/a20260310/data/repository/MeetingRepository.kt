@@ -11,10 +11,10 @@ import com.example.a20260310.data.remote.dto.DecisionDto
 import com.example.a20260310.data.remote.dto.DecisionUpdateRequestDto
 import com.example.a20260310.data.remote.dto.ImageUploadResponseDto
 import com.example.a20260310.data.remote.dto.MeetingCreateRequest
+import com.example.a20260310.data.remote.dto.UploadedFileDto
 import com.example.a20260310.data.remote.dto.MeetingResponseDto
 import com.example.a20260310.data.remote.dto.SummaryDetailResponseDto
 import com.example.a20260310.data.remote.dto.SummaryGenerateResponseDto
-import com.example.a20260310.data.remote.dto.SummaryUpdateRequest
 import com.example.a20260310.data.remote.dto.TranscriptResponseDto
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
@@ -23,6 +23,7 @@ import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
 import okhttp3.RequestBody.Companion.asRequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.ResponseBody
 import retrofit2.HttpException
 import retrofit2.Response
 import java.io.File
@@ -214,7 +215,37 @@ class MeetingRepository(
         )
     }
 
+    suspend fun getMeetingFiles(meetingId: Int): List<UploadedFileDto> {
+        return try {
+            val response = api.getMeetingFiles(meetingId)
+            Log.d("MeetingRepository", "Audio files: ${response.audioFiles.size}, Image files: ${response.imageFiles.size}")
+
+            val allFiles = mutableListOf<UploadedFileDto>()
+            allFiles.addAll(response.audioFiles)
+            allFiles.addAll(response.imageFiles)
+
+            allFiles
+        } catch (e: HttpException) {
+            Log.e("MeetingRepository", "getMeetingFiles HTTP error ${e.code()}")
+            e.printStackTrace()
+            emptyList()
+        } catch (e: Exception) {
+            Log.e("MeetingRepository", "getMeetingFiles exception", e)
+            e.printStackTrace()
+            emptyList()
+        }
+    }
+
     suspend fun deleteActionItem(actionItemId: Int): Response<Unit> {
         return api.deleteActionItem(actionItemId)
+    }
+
+    // MeetingRepository.kt
+    suspend fun downloadFile(meetingId: Int, fileId: Int): Response<ResponseBody> {
+        return api.downloadFile(meetingId, fileId)
+    }
+
+    suspend fun viewFile(meetingId: Int, fileId: Int): Response<ResponseBody> {
+        return api.viewFile(meetingId, fileId)
     }
 }

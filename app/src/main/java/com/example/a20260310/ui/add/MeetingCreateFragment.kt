@@ -152,8 +152,19 @@ class MeetingCreateFragment : Fragment(R.layout.fragment_meeting_create) {
         return SimpleDateFormat("a h:mm", Locale.KOREA).format(cal.time)
     }
 
-    private fun buildFullTitle(body: String): String =
-        body.trim()
+    /**
+     * 제목 입력란의 prefix로 보이는 회의 날짜와, 사용자가 입력한 본문을 합쳐 실제 저장용 제목으로 만든다.
+     * (prefixText는 EditText 값에 포함되지 않으므로 여기서 반드시 붙인다.)
+     */
+    private fun buildFullTitle(body: String): String {
+        val datePart = selectedDateStr.trim()
+        val namePart = body.trim()
+        return when {
+            datePart.isEmpty() -> namePart
+            namePart.isEmpty() -> datePart
+            else -> "$datePart $namePart"
+        }
+    }
 
     private fun createParticipantChip(group: ChipGroup, label: String): Chip {
         val chip = Chip(requireContext(), null, com.google.android.material.R.attr.chipStyle).apply {

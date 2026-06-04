@@ -32,8 +32,6 @@ import com.example.a20260310.viewmodel.SelectedSourceFile
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.io.File
-import java.text.SimpleDateFormat
-import java.util.Date
 import java.util.Locale
 import java.util.*
 import org.json.JSONArray
@@ -47,16 +45,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-fun getCurrentFileName(): String {
-    val sdf = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
-    return "moa_${sdf.format(Date())}.m4a"
-}
-
 fun getOrCreateFolder(context: Context, folderName: String?): File {
     val baseDir = File(context.filesDir, "MOA")
     if (!baseDir.exists()) baseDir.mkdir()
 
-    val folder = File(baseDir, folderName)
+    val folder = File(baseDir, folderName.orEmpty())
     if (!folder.exists()) folder.mkdir()
 
     return folder
@@ -69,6 +62,8 @@ class RecordingFragment : Fragment(R.layout.fragment_recording) {
         private const val STATE_OUTPUT_NEEDS_NEW = "recording_output_needs_new"
         private const val STATE_SEGMENT_PATHS = "recording_segment_paths"
         private const val TAG = "RecordingFragment"
+        /** 파일시스템·UI 안정을 위해 녹음 파일명(확장자 제외) 최대 길이 */
+        private const val MAX_RECORDING_STEM_LENGTH = 120
     }
 
     private val viewModel: RecordingViewModel by viewModels()
@@ -253,11 +248,11 @@ class RecordingFragment : Fragment(R.layout.fragment_recording) {
                 RecordingPhase.PAUSED -> {
                     stopPlaybackIfRunning()
                     val prefs = requireContext().getSharedPreferences("moa_prefs", 0)
-                    val fileName = getCurrentFileName()
-                    val meetingName = prefs.getString("current_meeting_name", fileName)
                     val folderName = prefs.getString("selected_folder", "전체")
                     val folder = getOrCreateFolder(requireContext(), folderName)
-                    val file = File(folder, fileName)
+                    val file = createNewRecordingOutputFile(folder)
+                    val fileName = file.name
+                    val meetingName = prefs.getString("current_meeting_name", fileName)
                     currentFile = file
                     outputNeedsNewFile = false
                     prefs.edit()
@@ -270,11 +265,11 @@ class RecordingFragment : Fragment(R.layout.fragment_recording) {
                     stopPlaybackIfRunning()
                     val prefs = requireContext().getSharedPreferences("moa_prefs", 0)
                     if (outputNeedsNewFile || currentFile == null) {
-                        val fileName = getCurrentFileName()
-                        val meetingName = prefs.getString("current_meeting_name", fileName)
                         val folderName = prefs.getString("selected_folder", "전체")
                         val folder = getOrCreateFolder(requireContext(), folderName)
-                        val file = File(folder, fileName)
+                        val file = createNewRecordingOutputFile(folder)
+                        val fileName = file.name
+                        val meetingName = prefs.getString("current_meeting_name", fileName)
                         currentFile = file
                         outputNeedsNewFile = false
                         prefs.edit()
@@ -581,7 +576,7 @@ class RecordingFragment : Fragment(R.layout.fragment_recording) {
         val input = EditText(requireContext()).apply {
             hint = getString(R.string.recording_save_hint)
             val meetingTitle = sessionViewModel.meetingDraft.value?.title?.trim().orEmpty()
-            setText(if (meetingTitle.isBlank()) "녹음파일" else "$meetingTitle 녹음파일")
+            setText(meetingTitle.ifBlank { "녹음" })
         }
 
         container.addView(
@@ -689,6 +684,58 @@ class RecordingFragment : Fragment(R.layout.fragment_recording) {
             Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
 
+    /** 회의 생성 시 입력한 제목 등 — 녹음 파일 베이스 이름에 사용 */
+    private fun rawTitleForRecordingFileName(): String {
+        val draftTitle = sessionViewModel.meetingDraft.value?.title?.trim().orEmpty()
+        if (draftTitle.isNotBlank()) return draftTitle
+
+        val sessionTitle = sessionViewModel.currentMeetingTitle.value?.trim().orEmpty()
+        if (sessionTitle.isNotBlank()) return sessionTitle
+
+        val fromPrefs =
+            requireContext()
+                .getSharedPreferences("moa_prefs", 0)
+                .getString("current_meeting_name", null)
+                ?.trim()
+                .orEmpty()
+        if (fromPrefs.isNotBlank()) return fromPrefs
+
+        return "녹음"
+    }
+
+    private fun sanitizeRecordingStem(raw: String): String {
+        var s = raw.replace("""[^\w.\-가-힣]""".toRegex(), "_")
+        s = s.trim(' ', '_', '.')
+        if (s.endsWith(".m4a", ignoreCase = true)) {
+            s = s.dropLast(4).trim(' ', '_', '.')
+        }
+        if (s.isBlank()) s = "녹음"
+        if (s.length > MAX_RECORDING_STEM_LENGTH) {
+            s = s.take(MAX_RECORDING_STEM_LENGTH).trimEnd(' ', '_', '.')
+            if (s.isBlank()) s = "녹음"
+        }
+        return s
+    }
+
+    private fun uniqueM4aInFolder(folder: File, stem: String): File {
+        val base = "$stem.m4a"
+        val dot = base.lastIndexOf('.')
+        val nameStem = base.substring(0, dot)
+        val ext = base.substring(dot)
+        var candidate = File(folder, base)
+        var n = 1
+        while (candidate.exists()) {
+            candidate = File(folder, "${nameStem}_$n$ext")
+            n++
+        }
+        return candidate
+    }
+
+    private fun createNewRecordingOutputFile(folder: File): File {
+        val stem = sanitizeRecordingStem(rawTitleForRecordingFileName())
+        return uniqueM4aInFolder(folder, stem)
+    }
+
     private fun ensureAudioPermission() {
         if (!hasAudioPermission()) {
             requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 0)
@@ -712,13 +759,13 @@ class RecordingFragment : Fragment(R.layout.fragment_recording) {
             MeetingFileRow(
                 title =
                     displayName.ifBlank {
-                        firstExistingFile?.nameWithoutExtension ?: "녹음파일"
+                        firstExistingFile?.nameWithoutExtension ?: "녹음"
                     },
                 subtitle = subtitle,
                 localPath = localPath,
                 displayName =
                     displayName.ifBlank {
-                        firstExistingFile?.nameWithoutExtension ?: "녹음파일"
+                        firstExistingFile?.nameWithoutExtension ?: "녹음"
                     },
                 type = MeetingFileRow.Type.AUDIO,
             )

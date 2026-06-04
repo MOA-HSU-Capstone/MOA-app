@@ -20,6 +20,7 @@ from .image_model import Image
 from .decision_model import Decision
 from .action_item_model import ActionItem
 from .folder_model import Folder
+from .uploaded_file_model import UploadedFile
 
 
 __all__ = [
@@ -32,4 +33,5 @@ __all__ = [
     "Decision",
     "ActionItem",
     "Folder",
+    "UploadedFile",
 ]

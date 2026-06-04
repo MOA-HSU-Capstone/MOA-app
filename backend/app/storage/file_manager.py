@@ -6,7 +6,7 @@ file_manager.py
 역할
 - 업로드된 오디오 파일 저장
 - 업로드된 이미지 파일 저장
-- 파일명을 UUID 기반으로 변경하여 중복 방지
+- 업로드 시 원본 파일명을 유지하되, 동일 폴더 충돌 시에만 번호 접미사로 구분
 - user_id + meeting_id 기준 폴더 생성 및 관리
 
 저장 구조
@@ -23,8 +23,8 @@ uploads/
 from __future__ import annotations
 
 import os
+import re
 import shutil
-import uuid
 from pathlib import Path
 
 from storage.upload_paths import ensure_user_meeting_upload_dirs
@@ -33,25 +33,38 @@ from storage.upload_paths import ensure_user_meeting_upload_dirs
 # -----------------------------------------
 # 내부 유틸
 # -----------------------------------------
-def _generate_unique_filename(original_filename: str | None) -> str:
+def _sanitize_client_filename(name: str | None) -> str:
     """
-    원본 파일명을 기반으로 UUID 파일명 생성
-
-    원본 파일명 자체는 저장하지 않고,
-    확장자만 유지해서 파일명 충돌과 한글/공백 문제를 줄인다.
-
-    예시
-    ----
-    원본 파일명: meeting.wav
-    저장 파일명: 9f3a1c2b...wav
+    클라이언트가 보낸 파일명에서 경로 요소·OS 금지 문자만 제거·치환한다.
     """
 
-    suffix = ""
+    if not name or not name.strip():
+        return "upload"
 
-    if original_filename:
-        suffix = Path(original_filename).suffix.lower()
+    base = Path(name).name
+    if not base or base in (".", ".."):
+        return "upload"
 
-    return f"{uuid.uuid4().hex}{suffix}"
+    base = base.replace("\x00", "")
+    base = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", base)
+    base = base.strip(" .")
+    return base if base else "upload"
+
+
+def _unique_save_path(directory: str, filename: str) -> str:
+    """directory 안에서 filename이 겹치지 않는 전체 경로를 반환한다."""
+
+    path = os.path.join(directory, filename)
+    if not os.path.exists(path):
+        return path
+
+    stem, ext = os.path.splitext(filename)
+    n = 1
+    while True:
+        candidate = os.path.join(directory, f"{stem}_{n}{ext}")
+        if not os.path.exists(candidate):
+            return candidate
+        n += 1
 
 
 # -----------------------------------------
@@ -67,7 +80,7 @@ def save_audio_file(
 
     저장 예시
     --------
-    uploads/users/1/meetings/3/audio/{uuid}.wav
+    uploads/users/1/meetings/3/audio/meeting.wav
 
     Parameters
     ----------
@@ -92,11 +105,8 @@ def save_audio_file(
         meeting_id=meeting_id,
     )
 
-    # UUID 기반 파일명 생성
-    filename = _generate_unique_filename(upload_file.filename)
-
-    # 최종 저장 경로
-    save_path = os.path.join(audio_dir, filename)
+    filename = _sanitize_client_filename(upload_file.filename)
+    save_path = _unique_save_path(audio_dir, filename)
 
     # 업로드 파일을 로컬 디스크에 저장
     with open(save_path, "wb") as buffer:
@@ -118,7 +128,7 @@ def save_image_file(
 
     저장 예시
     --------
-    uploads/users/1/meetings/3/images/{uuid}.png
+    uploads/users/1/meetings/3/images/whiteboard.png
 
     Parameters
     ----------
@@ -143,11 +153,8 @@ def save_image_file(
         meeting_id=meeting_id,
     )
 
-    # UUID 기반 파일명 생성
-    filename = _generate_unique_filename(upload_file.filename)
-
-    # 최종 저장 경로
-    save_path = os.path.join(image_dir, filename)
+    filename = _sanitize_client_filename(upload_file.filename)
+    save_path = _unique_save_path(image_dir, filename)
 
     # 업로드 파일을 로컬 디스크에 저장
     with open(save_path, "wb") as buffer:

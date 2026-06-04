@@ -4,14 +4,14 @@
 
     <string name="nav_home">MOA</string>
     <string name="nav_meeting">Meeting</string>
-    <string name="nav_history">설정</string>
+    <string name="nav_settings">설정</string>
     <string name="nav_meeting_upload">회의록 작성</string>
     <string name="nav_meeting_summary">회의 요약</string>
     <string name="nav_recording">녹음</string>
 
     <string name="home_title">MOA 홈</string>
     <string name="meeting_title">회의 진행</string>
-    <string name="history_title">설정</string>
+    <string name="settings_screen_title">설정</string>
     <string name="settings_logout">로그아웃</string>
 
     <string name="home_header">MOA - AI 회의록</string>

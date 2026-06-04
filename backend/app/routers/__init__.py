@@ -12,6 +12,7 @@ from .upload_router import router as upload_router
 from .decision_router import router as decision_router
 from .action_item_router import router as action_item_router
 from .folder_router import router as folder_router
+from .file_router import router as file_router
 
 
 __all__ = [
@@ -21,4 +22,5 @@ __all__ = [
     "upload_router",
     "decision_router",
     "action_item_router",
+    "file_router",
 ]

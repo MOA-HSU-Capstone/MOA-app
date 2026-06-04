@@ -126,9 +126,9 @@
         android:label="@string/nav_meeting_upload" />
 
     <fragment
-        android:id="@+id/historyFragment"
-        android:name="com.example.a20260310.ui.history.HistoryFragment"
-        android:label="@string/nav_history" />
+        android:id="@+id/settingsFragment"
+        android:name="com.example.a20260310.ui.settings.SettingsFragment"
+        android:label="@string/nav_settings" />
 
     <fragment
         android:id="@+id/detailFragment"

@@ -6,8 +6,8 @@
             android:icon="@android:drawable/ic_menu_view"
             android:title="@string/nav_home" />
         <item
-            android:id="@+id/historyFragment"
+            android:id="@+id/settingsFragment"
             android:icon="@android:drawable/ic_menu_manage"
-            android:title="@string/nav_history" />
+            android:title="@string/nav_settings" />
     </group>
 </menu>

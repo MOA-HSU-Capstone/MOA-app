@@ -19,12 +19,15 @@ object LocalMediaFolders {
 
     /**
      * 파일명에 쓸 수 없는 문자만 치환. 경로 구분자는 제거해 디렉터리 탈출을 막는다.
+     * 띄어쓰기·탭 등 공백은 `_`로 바꿔 갤러리·파일관리자·서버 목록 간 이름을 맞춘다.
      */
     fun sanitizeFileName(name: String): String {
         val trimmed = name.trim().ifBlank { "unnamed" }
         return trimmed
             .replace(Regex("""[/\\:*?"<>|\u0000]"""), "_")
-            .trim('.')
+            .replace(Regex("""\s+"""), "_")
+            .replace(Regex("""_+"""), "_")
+            .trim('_', '.')
             .take(180)
             .ifBlank { "unnamed" }
     }
@@ -36,12 +39,45 @@ object LocalMediaFolders {
         return if (ext in known) name.substring(0, dot) to ext else name to null
     }
 
+    private fun stripTrailingRecordingFileLabel(title: String): String =
+        title.replace(Regex("""(?i)[\s_]*녹음파일\s*$"""), "").trim()
+
+    private fun fauxProbeForExport(displayName: String): File {
+        val t = displayName.trim().ifBlank { return File("/", "x.m4a") }
+        val dot = t.lastIndexOf('.')
+        val hasReasonableExt = dot > 0 && dot < t.length - 1
+        return File("/", if (hasReasonableExt) t else "$t.m4a")
+    }
+
     /**
-     * [userDisplayName]은 사용자 입력을 최대한 유지하고, 확장자는 [sourceFile] 형식을 따른다.
+     * 공용 저장·MediaStore 조회 시 서버/목록에 올 수 있는 표기 차이(공백·`녹음파일` 접미사 등)를 흡수한다.
      */
-    fun buildAudioExportFileName(userDisplayName: String, sourceFile: File): String {
+    fun audioExportDisplayNamesForLookup(apiDisplayName: String): List<String> {
+        val faux = fauxProbeForExport(apiDisplayName)
+        val set = linkedSetOf<String>()
+        set.add(buildAudioExportFileName(apiDisplayName, faux))
+        set.add(buildAudioExportFileNameInternal(apiDisplayName, faux, stripRecordingSuffix = false))
+        val raw = apiDisplayName.trim()
+        if (raw.isNotEmpty()) {
+            set.add(raw)
+            if (raw.contains(' ') || raw.contains('\t')) {
+                set.add(raw.replace(Regex("""\s+"""), "_"))
+            }
+        }
+        return set.filter { it.isNotBlank() }
+    }
+
+    private fun buildAudioExportFileNameInternal(
+        userDisplayName: String,
+        sourceFile: File,
+        stripRecordingSuffix: Boolean,
+    ): String {
         val ext = sourceFile.extension.lowercase().ifBlank { "m4a" }
-        var base = sanitizeFileName(userDisplayName)
+        var raw = userDisplayName.trim().ifBlank { "unnamed" }
+        if (stripRecordingSuffix) {
+            raw = stripTrailingRecordingFileLabel(raw).ifBlank { "unnamed" }
+        }
+        var base = sanitizeFileName(raw)
         val (withoutAudioExt, trailingAudio) = stripKnownTrailingExtension(base, AUDIO_EXTENSIONS)
         base = withoutAudioExt
         if (trailingAudio != null && trailingAudio != ext) {
@@ -52,6 +88,13 @@ object LocalMediaFolders {
         }
         return "$base.$ext"
     }
+
+    /**
+     * [userDisplayName]은 사용자 입력을 최대한 유지하고, 확장자는 [sourceFile] 형식을 따른다.
+     * 끝의 `… 녹음파일` / `…_녹음파일` 접미사는 공용 파일명에서 제거한다.
+     */
+    fun buildAudioExportFileName(userDisplayName: String, sourceFile: File): String =
+        buildAudioExportFileNameInternal(userDisplayName, sourceFile, stripRecordingSuffix = true)
 
     fun buildPhotoExportFileName(userDisplayName: String, sourceFile: File): String {
         val ext = sourceFile.extension.lowercase().ifBlank { "jpg" }
@@ -168,6 +211,70 @@ object LocalMediaFolders {
         val nameForExport = preferredDisplayName?.trim()?.ifBlank { null } ?: sourceFile.name
         val destName = buildPdfExportFileName(nameForExport, sourceFile)
         return if (PublicMoaMediaStoreExport.exportPdfToDocumentsMoa(appCtx, sourceFile, destName)) {
+            destName
+        } else {
+            null
+        }
+    }
+
+    /**
+     * 서버 등에서 받은 오디오를 공용 **`Recordings/MOA/`** 에 저장한다.
+     * @return 저장된 파일명(확장자 포함), 실패 시 `null`
+     */
+    fun exportDownloadedAudio(
+        context: Context,
+        sourceFile: File,
+        preferredDisplayName: String?,
+    ): String? {
+        val appCtx = context.applicationContext
+        if (!sourceFile.isFile || !sourceFile.exists() || sourceFile.length() <= 0L) {
+            Log.e(TAG, "exportDownloadedAudio: invalid source: ${sourceFile.absolutePath}")
+            return null
+        }
+        val nameForExport = preferredDisplayName?.trim()?.ifBlank { null } ?: sourceFile.name
+        val destName = buildAudioExportFileName(nameForExport, sourceFile)
+        return if (PublicMoaMediaStoreExport.exportAudio(appCtx, sourceFile, destName)) {
+            destName
+        } else {
+            null
+        }
+    }
+
+    private fun guessDocumentMime(ext: String): String =
+        when (ext.lowercase()) {
+            "pdf" -> "application/pdf"
+            "txt" -> "text/plain"
+            "html", "htm" -> "text/html"
+            "json" -> "application/json"
+            "csv" -> "text/csv"
+            "doc" -> "application/msword"
+            "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            "xls" -> "application/vnd.ms-excel"
+            "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            "ppt" -> "application/vnd.ms-powerpoint"
+            "pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+            "zip" -> "application/zip"
+            else -> "application/octet-stream"
+        }
+
+    /**
+     * PDF 외 문서를 공용 **`Documents/MOA/`** 에 저장한다.
+     * @return 저장된 파일명, 실패 시 `null`
+     */
+    fun exportGenericDocumentFile(
+        context: Context,
+        sourceFile: File,
+        preferredDisplayName: String?,
+    ): String? {
+        val appCtx = context.applicationContext
+        if (!sourceFile.isFile || !sourceFile.exists() || sourceFile.length() <= 0L) {
+            Log.e(TAG, "exportGenericDocument: invalid source: ${sourceFile.absolutePath}")
+            return null
+        }
+        val raw = preferredDisplayName?.trim()?.ifBlank { null } ?: sourceFile.name
+        val destName = sanitizeFileName(raw).ifBlank { sourceFile.name }
+        val mime = guessDocumentMime(File(destName).extension)
+        return if (PublicMoaMediaStoreExport.exportDocumentToDocumentsMoa(appCtx, sourceFile, destName, mime)) {
             destName
         } else {
             null

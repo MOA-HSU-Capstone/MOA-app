@@ -8,7 +8,7 @@ meeting_model.py
 - 어떤 사용자가 만든 회의인지 user_id로 저장
 - 어떤 폴더에 속한 회의인지 folder_id로 저장
 - 회의 날짜 / 시간 / 참석자 정보 저장
-- transcript, summary, image의 상위 엔티티 역할
+- transcript, summary, image, uploaded_files의 상위 엔티티 역할
 
 폴더 구조
 ---------
@@ -20,6 +20,9 @@ User
 - folder_id는 nullable=True
 - folder_id가 NULL이면 폴더 미지정 회의로 처리한다.
 """
+
+from __future__ import annotations
+
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -62,11 +65,11 @@ class Meeting(Base):
     title = Column(String(255), nullable=False)
 
     # 회의 날짜
-    # 예: "2026.05.12"
+    # 예: "2026-06-02"
     meeting_date = Column(String(20), nullable=True)
 
     # 회의 시간
-    # 예: "오후 2:00"
+    # 예: "14:09"
     meeting_time = Column(String(20), nullable=True)
 
     # 참석자 목록
@@ -119,6 +122,16 @@ class Meeting(Base):
 
     images = relationship(
         "Image",
+        back_populates="meeting",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+
+    # 업로드된 원본 파일 메타데이터 목록
+    # 회의 삭제 시 uploaded_files row도 함께 삭제된다.
+    # 실제 서버 파일 삭제는 remove_meeting()에서 폴더 삭제로 처리된다.
+    uploaded_files = relationship(
+        "UploadedFile",
         back_populates="meeting",
         cascade="all, delete-orphan",
         passive_deletes=True,

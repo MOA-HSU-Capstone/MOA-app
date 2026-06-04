@@ -1,13 +1,11 @@
 package com.example.a20260310.ui.detail
 
 import android.app.AlertDialog
-import android.app.DownloadManager
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
-import android.os.Environment
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
@@ -32,9 +30,13 @@ import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.example.a20260310.BuildConfig
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.example.a20260310.R
 import com.example.a20260310.data.auth.TokenManager
+import com.example.a20260310.data.local.LocalMediaFolders
 import com.example.a20260310.data.local.MeetingLocalFilesPrefs
+import com.example.a20260310.data.local.PublicMoaMediaStoreExport
 import com.example.a20260310.data.model.DecisionItem
 import com.example.a20260310.data.model.DetailTaskItem
 import com.example.a20260310.data.model.MeetingFileRow
@@ -56,8 +58,16 @@ import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Locale
+import com.example.a20260310.data.remote.dto.UploadedFileDto
+import com.example.a20260310.data.remote.dto.MeetingFilesResponseDto
 
 class DetailFragment : Fragment(R.layout.fragment_detail) {
+
+    companion object {
+        private const val PUBLIC_EXPORT_PREFS = "moa_detail_public_exports"
+
+        private fun publicExportNameKey(meetingId: Int, fileId: Int) = "export_display_${meetingId}_$fileId"
+    }
 
     private val gson = Gson()
 
@@ -559,18 +569,52 @@ class DetailFragment : Fragment(R.layout.fragment_detail) {
     /**
      * 서버 경로(API·세션) + 이 회의 전용 로컬 목록(`meeting_{id}_files_json` 또는 제목 키).
      */
+
     private fun bindMeetingFileList() {
-        val rows = mergedMeetingFileRows()
-        if (rows.isEmpty()) {
-            fileRecycler.adapter = null
-            fileRecycler.visibility = View.GONE
+        if (meetingId <= 0) {
             fileEmptyState.visibility = View.VISIBLE
+            fileRecycler.visibility = View.GONE
             return
         }
-        fileEmptyState.visibility = View.GONE
-        fileRecycler.visibility = View.VISIBLE
-        fileRecycler.adapter =
-            MeetingFileAdapter(rows) { row -> onMeetingFileRowClicked(row) }
+
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                val files = viewModel.getMeetingFiles(meetingId)  // List<UploadedFileDto>
+
+                if (files.isEmpty()) {
+                    fileEmptyState.visibility = View.VISIBLE
+                    fileRecycler.visibility = View.GONE
+                    fileRecycler.adapter = null
+                } else {
+                    fileEmptyState.visibility = View.GONE
+                    fileRecycler.visibility = View.VISIBLE
+
+                    val rows = files.map { file ->
+                        MeetingFileRow(
+                            title = file.originalName,
+                            subtitle = file.fileType,
+                            localPath = "",
+                            displayName = file.originalName,
+                            type = when (file.fileType.uppercase()) {
+                                "AUDIO" -> MeetingFileRow.Type.AUDIO
+                                "IMAGE" -> MeetingFileRow.Type.IMAGE
+                                "PDF" -> MeetingFileRow.Type.PDF
+                                else -> MeetingFileRow.Type.DOCUMENT
+                            },
+                            downloadUrl = file.savedPath
+                        )
+                    }
+
+                    val fileIds = files.map { it.id }  // ⭐️ fileId 리스트 생성
+
+                    fileRecycler.adapter = MeetingFileAdapter(
+                        rows,
+                        fileIds,  // ⭐️ fileId 리스트 전달
+                        { row, fileId -> onMeetingFileRowClicked(row, fileId) }
+                    )
+                }
+            }
+        }
     }
 
     private fun mergedMeetingFileRows(): List<MeetingFileRow> {
@@ -614,27 +658,46 @@ class DetailFragment : Fragment(R.layout.fragment_detail) {
         )
     }
 
-    private fun onMeetingFileRowClicked(row: MeetingFileRow) {
-        when {
-            row.localPath.isNotBlank() -> {
-                val file = File(row.localPath)
-                if (file.exists()) {
-                    openLocalMeetingFile(file)
-                } else {
-                    Toast.makeText(
-                        requireContext(),
-                        getString(R.string.detail_file_not_found),
-                        Toast.LENGTH_SHORT,
-                    ).show()
-                }
+    private fun onMeetingFileRowClicked(row: MeetingFileRow, fileId: Int) {
+        if (row.downloadUrl.isNullOrBlank()) {
+            Toast.makeText(
+                requireContext(),
+                getString(R.string.detail_download_failed),
+                Toast.LENGTH_SHORT,
+            ).show()
+            return
+        }
+        lifecycleScope.launch {
+            val publicUri = resolveExistingPublicUri(row, fileId)
+            if (publicUri != null) {
+                openPublicContentUri(publicUri, row)
+                return@launch
             }
-            !row.downloadUrl.isNullOrBlank() -> downloadFromServer(row)
-            else ->
-                Toast.makeText(
-                    requireContext(),
-                    getString(R.string.detail_download_failed),
-                    Toast.LENGTH_SHORT,
-                ).show()
+            val cached = getDownloadedFile(row, fileId)
+            if (cached != null && cached.exists() && cached.length() > 0L) {
+                openLocalMeetingFile(cached)
+                return@launch
+            }
+            downloadFileFromServerSuspend(row, fileId)
+        }
+    }
+
+    private fun openPublicContentUri(uri: Uri, row: MeetingFileRow) {
+        val resolver = requireContext().contentResolver
+        val mime = resolver.getType(uri) ?: mimeForRow(row)
+        val intent =
+            Intent(Intent.ACTION_VIEW).apply {
+                setDataAndType(uri, mime)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+        try {
+            startActivity(intent)
+        } catch (_: ActivityNotFoundException) {
+            Toast.makeText(
+                requireContext(),
+                getString(R.string.detail_no_viewer_app),
+                Toast.LENGTH_SHORT,
+            ).show()
         }
     }
 
@@ -667,6 +730,74 @@ class DetailFragment : Fragment(R.layout.fragment_detail) {
         return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: "*/*"
     }
 
+    private fun mimeForRow(row: MeetingFileRow): String {
+        val ext = row.displayName.substringAfterLast('.', "").lowercase(Locale.getDefault())
+        return MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext)
+            ?: when (row.type) {
+                MeetingFileRow.Type.AUDIO -> "audio/*"
+                MeetingFileRow.Type.IMAGE -> "image/*"
+                MeetingFileRow.Type.PDF -> "application/pdf"
+                MeetingFileRow.Type.DOCUMENT -> "*/*"
+            }
+    }
+
+    private fun fauxFileFromDisplayName(displayName: String): File =
+        File("/", displayName.trim().ifBlank { "file" })
+
+    /** 서버에 표시된 이름만 알 때의 예상 공용 저장 파일명 (첫 다운로드 전 조회용) */
+    private fun expectedPublicDisplayName(row: MeetingFileRow): String {
+        val d = row.displayName.trim().ifBlank { "file" }
+        val faux = fauxFileFromDisplayName(d)
+        return when (row.type) {
+            MeetingFileRow.Type.AUDIO -> LocalMediaFolders.buildAudioExportFileName(d, faux)
+            MeetingFileRow.Type.IMAGE -> LocalMediaFolders.buildPhotoExportFileName(d, faux)
+            MeetingFileRow.Type.PDF -> LocalMediaFolders.buildPdfExportFileName(d, faux)
+            MeetingFileRow.Type.DOCUMENT -> LocalMediaFolders.sanitizeFileName(d).ifBlank { faux.name }
+        }
+    }
+
+    /** 한 번 저장에 성공한 실제 [DISPLAY_NAME]이 있으면 조회 후보 맨 앞에 둔다. */
+    private fun readRememberedPublicExportName(fileId: Int): String? =
+        requireContext()
+            .getSharedPreferences(PUBLIC_EXPORT_PREFS, 0)
+            .getString(publicExportNameKey(meetingId, fileId), null)
+            ?.trim()
+            ?.ifBlank { null }
+
+    private suspend fun resolveExistingPublicUri(row: MeetingFileRow, fileId: Int): Uri? {
+        val appCtx = requireContext().applicationContext
+        val candidates = linkedSetOf<String>()
+        readRememberedPublicExportName(fileId)?.let { candidates.add(it) }
+        when (row.type) {
+            MeetingFileRow.Type.AUDIO ->
+                candidates.addAll(LocalMediaFolders.audioExportDisplayNamesForLookup(row.displayName))
+            else -> candidates.add(expectedPublicDisplayName(row))
+        }
+        return withContext(Dispatchers.IO) {
+            PublicMoaMediaStoreExport.findExistingInMoaPublic(
+                appCtx,
+                publicSlotForRow(row),
+                candidates,
+            )
+        }
+    }
+
+    private fun rememberPublicExportDisplayName(fileId: Int, exportedName: String) {
+        val n = exportedName.trim().ifBlank { return }
+        requireContext().getSharedPreferences(PUBLIC_EXPORT_PREFS, 0).edit()
+            .putString(publicExportNameKey(meetingId, fileId), n)
+            .apply()
+    }
+
+    private fun publicSlotForRow(row: MeetingFileRow): PublicMoaMediaStoreExport.MoaPublicSlot =
+        when (row.type) {
+            MeetingFileRow.Type.AUDIO -> PublicMoaMediaStoreExport.MoaPublicSlot.RECORDINGS
+            MeetingFileRow.Type.IMAGE -> PublicMoaMediaStoreExport.MoaPublicSlot.PICTURES
+            MeetingFileRow.Type.PDF,
+            MeetingFileRow.Type.DOCUMENT,
+            -> PublicMoaMediaStoreExport.MoaPublicSlot.DOCUMENTS
+        }
+
     private fun pathToMeetingFileRow(serverPath: String): MeetingFileRow {
         val trimmed = serverPath.trim()
         val name = trimmed.substringAfterLast('/').ifBlank { trimmed }
@@ -698,25 +829,104 @@ class DetailFragment : Fragment(R.layout.fragment_detail) {
         return "$base/${p.removePrefix("/")}"
     }
 
-    private fun downloadFromServer(row: MeetingFileRow) {
-        val url = row.downloadUrl ?: return
-        val dm = requireContext().getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
-        val request =
-            DownloadManager.Request(Uri.parse(url))
-                .setTitle(row.displayName)
-                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                .setAllowedOverMetered(true)
-                .setAllowedOverRoaming(true)
-        TokenManager.getAccessToken()?.trim()?.takeIf { it.isNotEmpty() }?.let { token ->
-            request.addRequestHeader("Authorization", "Bearer $token")
+    /**
+     * 서버에서 받은 바이트를 임시로 두는 경로(앱 캐시). 재생·열기는 이 파일로 하고,
+     * 동시에 녹음·촬영과 동일한 공용 MediaStore 경로(`Recordings|Pictures|Documents/MOA/`)로도 보낸다.
+     *
+     * 파일명은 `file_{id}.ext`가 아니라 표시 이름에 가깝게 두어, 외부 앱 재생 시 제목에 `file_28`만
+     * 뜨는 현상을 줄인다. [fileId]는 동일 회의 내 이름 충돌 방지용 접미사다.
+     */
+    private fun serverDownloadCacheFile(fileId: Int, displayName: String): File {
+        val dot = displayName.lastIndexOf('.')
+        val ext =
+            if (dot in 1 until displayName.length - 1) {
+                displayName.substring(dot + 1).lowercase(Locale.ROOT).replace(Regex("[^a-z0-9]"), "").take(12)
+            } else {
+                ""
+            }.ifBlank { "bin" }
+        val stem = if (dot > 0) displayName.substring(0, dot) else displayName
+        val safeStem =
+            LocalMediaFolders.sanitizeFileName(stem).trim('.').ifBlank { "download" }.take(120)
+        val dir = File(requireContext().cacheDir, "moa_server_downloads/$meetingId").apply { mkdirs() }
+        return File(dir, "${safeStem}_$fileId.$ext")
+    }
+
+    private fun getDownloadedFile(row: MeetingFileRow, fileId: Int): File? {
+        val f = serverDownloadCacheFile(fileId, row.displayName)
+        return if (f.isFile && f.exists() && f.length() > 0L) f else null
+    }
+
+    private suspend fun exportServerDownloadToPublic(row: MeetingFileRow, cacheFile: File): String? {
+        val appCtx = requireContext().applicationContext
+        return withContext(Dispatchers.IO) {
+            when (row.type) {
+                MeetingFileRow.Type.AUDIO ->
+                    LocalMediaFolders.exportDownloadedAudio(appCtx, cacheFile, row.displayName)
+                MeetingFileRow.Type.IMAGE ->
+                    LocalMediaFolders.exportPhotoFile(appCtx, cacheFile, row.displayName)
+                MeetingFileRow.Type.PDF ->
+                    LocalMediaFolders.exportPdfFile(appCtx, cacheFile, row.displayName)
+                MeetingFileRow.Type.DOCUMENT ->
+                    LocalMediaFolders.exportGenericDocumentFile(appCtx, cacheFile, row.displayName)
+            }
         }
-        runCatching {
-            request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "MOA/${row.displayName}")
-            dm.enqueue(request)
-        }.onSuccess {
-            Toast.makeText(requireContext(), getString(R.string.detail_download_started), Toast.LENGTH_SHORT).show()
-        }.onFailure {
-            Toast.makeText(requireContext(), getString(R.string.detail_download_failed), Toast.LENGTH_SHORT).show()
+    }
+
+    private suspend fun downloadFileFromServerSuspend(row: MeetingFileRow, fileId: Int) {
+        try {
+            val publicUriFirst = resolveExistingPublicUri(row, fileId)
+            if (publicUriFirst != null) {
+                openPublicContentUri(publicUriFirst, row)
+                return
+            }
+
+            val response = viewModel.downloadFile(meetingId, fileId)
+
+            if (response.isSuccessful) {
+                val body = response.body()
+                if (body != null) {
+                    val cacheFile = serverDownloadCacheFile(fileId, row.displayName)
+                    cacheFile.parentFile?.mkdirs()
+
+                    withContext(Dispatchers.IO) {
+                        body.byteStream().use { input ->
+                            cacheFile.outputStream().use { output -> input.copyTo(output) }
+                        }
+                    }
+
+                    if (!cacheFile.exists() || cacheFile.length() == 0L) {
+                        Toast.makeText(
+                            requireContext(),
+                            getString(R.string.detail_download_failed),
+                            Toast.LENGTH_SHORT,
+                        ).show()
+                        return
+                    }
+
+                    val exportedName = exportServerDownloadToPublic(row, cacheFile)
+                    exportedName?.let { rememberPublicExportDisplayName(fileId, it) }
+
+                    Toast.makeText(
+                        requireContext(),
+                        getString(R.string.detail_download_started),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+
+                    openLocalMeetingFile(cacheFile)
+                }
+            } else {
+                Toast.makeText(
+                    requireContext(),
+                    "다운로드 실패: ${response.code()}",
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(
+                requireContext(),
+                "다운로드 오류: ${e.message}",
+                Toast.LENGTH_SHORT,
+            ).show()
         }
     }
 

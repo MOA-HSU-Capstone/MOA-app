@@ -95,16 +95,17 @@ class AddMethodFragment : Fragment(R.layout.fragment_add_method) {
                 val pdfUri = scanResult?.pdf?.uri
                 val firstPage = scanResult?.pages?.firstOrNull()
                 val fileUri = pdfUri ?: firstPage?.imageUri
-                val localName =
-                    when {
-                        pdfUri != null -> "scan_${System.currentTimeMillis()}.pdf"
-                        else -> "scan_${System.currentTimeMillis()}.jpg"
-                    }
 
                 if (fileUri == null) {
                     Toast.makeText(ctx, getString(R.string.toast_scan_no_file), Toast.LENGTH_SHORT).show()
                     return@launch
                 }
+
+                val localName =
+                    when {
+                        pdfUri != null -> "scan.pdf"
+                        else -> "scan.jpg"
+                    }
 
                 val savedPath =
                     withContext(Dispatchers.IO) {
@@ -361,6 +362,23 @@ class AddMethodFragment : Fragment(R.layout.fragment_add_method) {
 
     private fun importWorkDir(): File = importWorkDir(requireContext())
 
+    /**
+     * 원하는 표시 이름에 가깝게 파일명을 정리하고, 같은 폴더에 동일 이름이 있으면 _1, _2… 를 붙인다.
+     */
+    private fun uniqueOutputFile(parentDir: File, displayName: String): File? {
+        val safe = displayName.replace("""[^\w.\-가-힣]""".toRegex(), "_").trim().ifBlank { return null }
+        val dot = safe.lastIndexOf('.')
+        val stem = if (dot > 0) safe.substring(0, dot) else safe
+        val ext = if (dot > 0) safe.substring(dot) else ""
+        var candidate = File(parentDir, safe)
+        var n = 1
+        while (candidate.exists()) {
+            candidate = File(parentDir, "${stem}_$n$ext")
+            n++
+        }
+        return candidate
+    }
+
     private fun resolveMimeType(uri: Uri, displayName: String): String {
         val resolverMime = requireContext().contentResolver.getType(uri)?.lowercase(Locale.ROOT)
         if (!resolverMime.isNullOrBlank()) return resolverMime
@@ -394,8 +412,7 @@ class AddMethodFragment : Fragment(R.layout.fragment_add_method) {
     }
 
     private fun copyPickedDocumentToAppStorage(uri: Uri, displayName: String): String? {
-        val safeName = displayName.replace("""[^\w.\-가-힣]""".toRegex(), "_")
-        val outputFile = File(importWorkDir(), "${System.currentTimeMillis()}_$safeName")
+        val outputFile = uniqueOutputFile(importWorkDir(), displayName) ?: return null
         return runCatching {
             requireContext().contentResolver.openInputStream(uri).use { input ->
                 if (input == null) return null
@@ -406,8 +423,7 @@ class AddMethodFragment : Fragment(R.layout.fragment_add_method) {
     }
 
     private fun copyPickedAudioToAppStorage(uri: Uri, displayName: String): String? {
-        val safeName = displayName.replace("""[^\w.\-가-힣]""".toRegex(), "_")
-        val outputFile = File(importWorkDir(), "${System.currentTimeMillis()}_$safeName")
+        val outputFile = uniqueOutputFile(importWorkDir(), displayName) ?: return null
         return runCatching {
             requireContext().contentResolver.openInputStream(uri).use { input ->
                 if (input == null) return null
@@ -508,7 +524,7 @@ class AddMethodFragment : Fragment(R.layout.fragment_add_method) {
     ).toInt()
 
     private fun copyUriToAppFile(context: Context, uri: Uri, fileName: String): String? {
-        val outputFile = File(importWorkDir(context), fileName)
+        val outputFile = uniqueOutputFile(importWorkDir(context), fileName) ?: return null
         return runCatching {
             context.contentResolver.openInputStream(uri).use { input ->
                 if (input == null) return null
