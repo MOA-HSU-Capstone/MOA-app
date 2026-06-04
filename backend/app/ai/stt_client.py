@@ -46,8 +46,6 @@ def _get_base_url() -> str:
     """
     settings에서 STT 서버 base URL을 가져온다.
 
-    예:
-    http://34.47.117.201:5000
     """
 
     base_url = (settings.stt_server_url or "").rstrip("/")
