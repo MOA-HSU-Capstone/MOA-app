@@ -9,6 +9,7 @@ audio_service.py
 - 오디오 전처리
 - STT 서버 전송 전 wav 변환
 - STT 수행
+- STT 처리 후 임시 변환본/분할 파일 삭제
 - transcript DB 저장
 - 여러 오디오 파일 처리
 - 여러 transcript를 하나의 combined_transcript로 합치기
@@ -30,6 +31,8 @@ preprocess
     ↓
 audio_converter
     ↓
+audio_splitter
+    ↓
 stt_service
     ↓
 transcript_repository
@@ -46,6 +49,7 @@ uploads/
         └─ meetings/
             └─ {meeting_id}/
                 ├─ audio/
+                │   └─ converted/   ← STT 처리 후 삭제되는 임시 파일 폴더
                 └─ images/
 """
 
@@ -150,6 +154,7 @@ def _create_audio_file_metadata(
     ----
     - 실제 오디오 파일 바이너리는 DB에 저장하지 않는다.
     - DB에는 원본 파일명, 저장 경로, MIME 타입, 용량만 저장한다.
+    - STT용 변환본이나 분할 파일은 DB에 저장하지 않는다.
     """
 
     create_uploaded_file(
@@ -163,6 +168,104 @@ def _create_audio_file_metadata(
             size_bytes=_get_file_size_bytes(saved_path),
         ),
     )
+
+
+def _is_temp_converted_audio_file(file_path: Path) -> bool:
+    """
+    삭제해도 되는 STT 임시 오디오 파일인지 확인한다.
+
+    원본 오디오 파일 삭제를 막기 위해 converted 폴더 안에 있는 파일만
+    삭제 대상으로 인정한다.
+    """
+
+    return (
+        file_path.exists()
+        and file_path.is_file()
+        and "converted" in file_path.parts
+    )
+
+
+def _cleanup_empty_converted_dirs(start_path: Path) -> None:
+    """
+    converted 내부의 빈 폴더를 정리한다.
+
+    예시
+    ----
+    audio/converted/test_stt.wav
+    audio/converted/chunks/test_stt_001.wav
+
+    파일 삭제 후 chunks 폴더나 converted 폴더가 비어 있으면 삭제한다.
+    """
+
+    current_dir = start_path.parent
+
+    while current_dir.name != "audio":
+        try:
+            if current_dir.exists() and current_dir.is_dir():
+                current_dir.rmdir()
+            else:
+                break
+        except OSError:
+            # 폴더 안에 파일이 남아 있으면 삭제하지 않는다.
+            break
+
+        if current_dir.name == "converted":
+            break
+
+        current_dir = current_dir.parent
+
+
+def _delete_temp_audio_files(
+    wav_path: str | None,
+    split_paths: list[str],
+) -> None:
+    """
+    STT 처리 후 임시 오디오 파일을 삭제한다.
+
+    삭제 대상
+    --------
+    - audio/converted/ 안에 생성된 STT용 wav 변환본
+    - split_wav_file()로 생성된 조각 파일
+
+    주의
+    ----
+    - 원본 업로드 파일은 삭제하지 않는다.
+    - converted 폴더 내부 파일만 삭제한다.
+    - 삭제 실패는 전체 STT 결과 저장을 막지 않도록 로그만 출력한다.
+    """
+
+    temp_paths: list[str] = []
+
+    if split_paths:
+        temp_paths.extend(split_paths)
+
+    if wav_path:
+        temp_paths.append(wav_path)
+
+    deleted_files: list[Path] = []
+
+    for temp_path in temp_paths:
+        temp_file = Path(temp_path)
+
+        try:
+            if _is_temp_converted_audio_file(temp_file):
+                temp_file.unlink()
+                deleted_files.append(temp_file)
+
+        except Exception as e:
+            print(
+                f"임시 오디오 파일 삭제 실패: {temp_file} / {e}",
+                flush=True,
+            )
+
+    for deleted_file in deleted_files:
+        try:
+            _cleanup_empty_converted_dirs(deleted_file)
+        except Exception as e:
+            print(
+                f"임시 오디오 폴더 정리 실패: {deleted_file.parent} / {e}",
+                flush=True,
+            )
 
 
 def _process_single_audio_to_transcript(
@@ -180,12 +283,13 @@ def _process_single_audio_to_transcript(
     2. 현재 로그인한 사용자 기준 폴더에 오디오 파일 저장
     3. 오디오 파일 메타데이터 uploaded_files 테이블에 저장
     4. 오디오 파일 기본 전처리
-    5. wav 변환
+    5. STT용 wav 변환
     6. wav 파일을 5분 단위로 분할한 뒤 STT 수행
-    7. STT 결과 텍스트 정규화
-    8. STT 결과가 비어 있으면 저장하지 않고 None 반환
-    9. transcript DB 저장
-    10. TranscriptResponse 반환
+    7. STT 처리 후 변환본/조각 파일 삭제
+    8. STT 결과 텍스트 정규화
+    9. STT 결과가 비어 있으면 저장하지 않고 None 반환
+    10. transcript DB 저장
+    11. TranscriptResponse 반환
     """
 
     # 1. 파일명 확인
@@ -206,6 +310,9 @@ def _process_single_audio_to_transcript(
     #
     # 파일 탭 조회 API(GET /meetings/{meeting_id}/files)에서
     # 이 데이터를 사용한다.
+    #
+    # 여기에는 원본 업로드 파일만 저장한다.
+    # STT용 변환본/분할 파일은 DB에 저장하지 않는다.
     _create_audio_file_metadata(
         db=db,
         meeting_id=meeting_id,
@@ -223,57 +330,76 @@ def _process_single_audio_to_transcript(
             detail=f"오디오 파일을 찾을 수 없습니다: {str(e)}",
         )
 
-    # 5. STT 서버 전송 전 wav 변환
+    wav_path: str | None = None
+    split_paths: list[str] = []
+    transcript_text = ""
+
     try:
-        wav_path = convert_audio_to_wav(processed_path)
+        # 5. STT 서버 전송 전 wav 변환
+        #
+        # convert_audio_to_wav()는 STT가 이해하기 좋은 형식으로 변환한
+        # 임시 파일 경로를 반환한다.
+        #
+        # 권장 변환본 위치:
+        # uploads/users/{user_id}/meetings/{meeting_id}/audio/converted/
+        try:
+            wav_path = convert_audio_to_wav(processed_path)
 
-    except FileNotFoundError as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"오디오 파일을 찾을 수 없습니다: {str(e)}",
-        )
-
-    except RuntimeError as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"오디오 wav 변환 중 오류가 발생했습니다: {str(e)}",
-        )
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"알 수 없는 오디오 변환 오류가 발생했습니다: {str(e)}",
-        )
-
-    # 6. 긴 wav 파일을 5분 단위로 분할한 뒤 STT 실행
-    try:
-        split_paths = split_wav_file(
-            wav_path=wav_path,
-            segment_seconds=300,
-        )
-
-        transcript_parts: list[str] = []
-
-        for index, split_path in enumerate(split_paths, start=1):
-            print(
-                f"STT split file {index}/{len(split_paths)} = {split_path}",
-                flush=True,
+        except FileNotFoundError as e:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"오디오 파일을 찾을 수 없습니다: {str(e)}",
             )
 
-            part_text = transcribe_audio_file(split_path)
-            part_text = normalize_transcript_text(part_text)
+        except RuntimeError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"오디오 wav 변환 중 오류가 발생했습니다: {str(e)}",
+            )
 
-            if part_text:
-                transcript_parts.append(
-                    f"[오디오 조각 {index}]\n{part_text}"
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"알 수 없는 오디오 변환 오류가 발생했습니다: {str(e)}",
+            )
+
+        # 6. 긴 wav 파일을 5분 단위로 분할한 뒤 STT 실행
+        try:
+            split_paths = split_wav_file(
+                wav_path=wav_path,
+                segment_seconds=300,
+            )
+
+            transcript_parts: list[str] = []
+
+            for index, split_path in enumerate(split_paths, start=1):
+                print(
+                    f"STT split file {index}/{len(split_paths)} = {split_path}",
+                    flush=True,
                 )
 
-        transcript_text = "\n\n".join(transcript_parts)
+                part_text = transcribe_audio_file(split_path)
+                part_text = normalize_transcript_text(part_text)
 
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"STT 처리 중 오류가 발생했습니다: {str(e)}",
+                if part_text:
+                    transcript_parts.append(
+                        f"[오디오 조각 {index}]\n{part_text}"
+                    )
+
+            transcript_text = "\n\n".join(transcript_parts)
+
+        except Exception as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"STT 처리 중 오류가 발생했습니다: {str(e)}",
+            )
+
+    finally:
+        # STT 성공/실패 여부와 상관없이 임시 변환본과 조각 파일은 삭제한다.
+        # 단, 원본 업로드 파일은 삭제하지 않는다.
+        _delete_temp_audio_files(
+            wav_path=wav_path,
+            split_paths=split_paths,
         )
 
     # 7. STT 결과 텍스트 정규화
