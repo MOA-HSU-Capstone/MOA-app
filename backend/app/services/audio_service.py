@@ -79,6 +79,8 @@ from utils.preprocess import (
     preprocess_audio_file,
     safe_json_dumps,
 )
+from utils.stt_postprocess import postprocess_stt_text
+from utils.domain_terms import apply_domain_terms
 
 
 def _get_file_size_bytes(file_path: str) -> int | None:
@@ -565,17 +567,26 @@ def process_uploaded_audio_files_and_create_summary(
     # 8. 참석자 목록 추출
     attendees = _get_meeting_attendees(meeting)
 
-    # 9. LLM 요약 함수 한 번만 호출
-    #
-    # 현재는 오디오만 처리하므로 ocr_text는 빈 문자열로 전달한다.
-    # 나중에 OCR 결과까지 합칠 경우 ocr_text에 이미지 OCR 내용을 넣으면 된다.
+    # 9. STT 공통 후처리
+    combined_transcript = postprocess_stt_text(
+        text=combined_transcript,
+        attendees=attendees,
+    )
+
+    # 10. 도메인 용어 후처리
+    combined_transcript = apply_domain_terms(
+        text=combined_transcript,
+        domains=["it", "school", "meeting"],
+    )
+
+    # 11. LLM 요약 함수 한 번만 호출
     try:
         summary_result = summarize_meeting_from_text(
-            stt_text=combined_transcript,
-            ocr_text="",
-            title=meeting.title,
-            attendees=attendees,
-        )
+        stt_text=combined_transcript,
+        ocr_text="",
+        title=meeting.title,
+        attendees=attendees,
+    )
 
     except Exception as e:
         raise HTTPException(
@@ -583,7 +594,7 @@ def process_uploaded_audio_files_and_create_summary(
             detail=f"회의 요약 생성 중 오류가 발생했습니다: {str(e)}",
         )
 
-    # 10. SummaryCreate 생성
+    # 12. SummaryCreate 생성
     #
     # SummaryCreate.content가 str 타입이므로,
     # dict 형태인 summary_result를 JSON 문자열로 변환해서 저장한다.
@@ -592,13 +603,13 @@ def process_uploaded_audio_files_and_create_summary(
         content=safe_json_dumps(summary_result),
     )
 
-    # 11. Summary 1개 DB 저장 또는 갱신
+    # 13. Summary 1개 DB 저장 또는 갱신
     #
     # create_summary()를 사용하면 같은 meeting_id에 대해
     # summary가 여러 개 생길 수 있으므로 upsert_summary()를 사용한다.
     meeting_summary = upsert_summary(db, summary_data)
 
-    # 12. 최종 summary 응답 반환
+    # 14. 최종 summary 응답 반환
     return SummaryResponse.model_validate(meeting_summary)
 
 
